@@ -1,0 +1,15 @@
+command! RenameTerm lua require'neoWin.terminals'.terminals:renameTerm()
+command! NextTerm lua require'neoWin.terminals'.terminals:nextTerm()
+command! PrevTerm lua require'neoWin.terminals'.terminals:prevTerm()
+command! NewTerm lua require'neoWin.terminals'.terminals:newTerm() 
+command! ToggleZoom lua require'neoWin.winSizing'.toggleZoom()
+command! Terminals lua require'neoWin.customPicker'.termPick()
+command! ShowTerms lua require'neoWin.terminals'.terminals:show()
+command! ToggleTerm lua require'neoWin.terminals'.terminals:toggle(); 
+
+autocmd TermClose * lua require'neoWin.terminals'.terminals:setCurrent()
+autocmd BufWinEnter * lua require'neoWin.terminals'.terminals:setCurrent()
+autocmd WinEnter * lua require'neoWin.terminals'.terminals:setCurrent()
+autocmd WinLeave * lua require'neoWin.terminals'.terminals:setCurrent()
+autocmd TermClose * lua require'neoWin.winSizing'.winInfo()
+autocmd WinNew * lua require'neoWin.winSizing'.winInfo()
