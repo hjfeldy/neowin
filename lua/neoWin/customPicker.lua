@@ -2,7 +2,7 @@ local pickers = require "telescope.pickers"
 local finders = require "telescope.finders"
 local conf = require("telescope.config").values
 local actions = require "telescope.actions"
-local previewers = require'neoWin.telescope.previewers'
+local previewers = require'telescope.previewers'
 local action_state = require "telescope.actions.state"
 local api = vim.api
 

@@ -132,6 +132,7 @@ function Terminals:attach(termIndex)
     self.bufs[termIndex].focused = true
     api.nvim_win_set_buf(0, self.bufs[termIndex].bufNr)
     self.recent = termIndex
+    vim.cmd('goto 99999999')
 end
 
 function Terminals:nextTerm()
