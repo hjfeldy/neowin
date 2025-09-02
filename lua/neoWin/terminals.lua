@@ -2,8 +2,12 @@ local util = require('neoWin.util')
 local winSizing = require('neoWin.winSizing')
 local api = vim.api
 
+local pathSep = package.config:sub(1,1)
+local isWindows = pathSep == '\\'
+local shell = isWindows and 'powershell' or os.getenv('SHELL')
+
 local function makeTerm()
-    return vim.cmd('e term://zsh')
+    return vim.cmd('e term://' .. shell)
 end
 
 
