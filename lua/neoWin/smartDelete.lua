@@ -8,7 +8,7 @@ function M.smartDelete(force)
     print('Do not close terminal buffers with bdelete - exit the terminal process')
     return
   end
-  local hasTerm = terminals:termVisible() ~= nil
+  local hasTerm = terminals:termVisible() 
   if hasTerm then
     terminals:toggle()
   end

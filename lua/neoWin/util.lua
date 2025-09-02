@@ -2,11 +2,16 @@ local api = vim.api
 
 local M = {}
 
-function M.debug(msg)
-  if not vim.g.NEOWIN_DEBUG then
+function M.debug(msg, force)
+  if not vim.g.NEOWIN_DEBUG and not force then
     return
   end
   vim.notify(msg, vim.log.levels.DEBUG)
+end
+
+function M.toggleDebug() 
+  vim.g.NEOWIN_DEBUG = not vim.g.NEOWIN_DEBUG
+  M.debug('Toggled neoWin logging to ' .. (vim.g.NEOWIN_DEBUG and 'true' or 'false'), true)
 end
 
 function M.showBufs(prefix)

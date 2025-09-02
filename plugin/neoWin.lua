@@ -2,6 +2,7 @@ local api = vim.api
 local Terminals = require('neoWin.terminals')
 local winSizing = require('neoWin.winSizing')
 local customPicker = require('neoWin.customPicker')
+local util = require('neoWin.util')
 
 --[[ Autocommands ]]
 -- Whenever a window/buffer is closed through some user action external to this API,
