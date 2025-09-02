@@ -1,220 +1,241 @@
+local util = require('neoWin.util')
+local winSizing = require('neoWin.winSizing')
 local api = vim.api
 
 local function makeTerm()
     return vim.cmd('e term://zsh')
 end
 
-Terminals = {numTerms = 0, bufs = {}, recent=nil, toggled = false}
 
-function Terminals:new(o)
-    o = o or {}
-    setmetatable(o, self)
-    self.__index = self
-    return o
-end
+--- Terminal Buffer Metadata
+---@class TermBuffer
+---@field focused boolean When Terminals are toggled, is this terminal in view?
+---@field name string Name of the buffer
+---@field bufNr integer Buffer ID
+---@field index integer Terminal Index (the i'th Terminal)
 
+--- Terminals API Singleton Class
+--- Manages which terminals show up in the Terminal pane,
+--- and toggles the Terminal pane itself
+---@class Terminals
+---@field numTerms number Current count of terminals
+---@field bufs table<integer, TermBuffer> Map of terminal buffers by their index
+---@field bufsById table<integer, TermBuffer> Map of terminal buffers by their ID
+---@field toggled boolean Is the terminal pane toggled?
+local Terminals = {
+  numTerms = 0,
+  bufs = {},
+  bufsById = {},
+  recent=nil,
+  toggled = false,
+}
+
+--- Create a new Terminal
 function Terminals:createTerm()
-    self.numTerms = self.numTerms + 1
-    local newBuf = api.nvim_create_buf(false, false)
-    local name = 'Terminal ' .. self.numTerms
-    api.nvim_buf_call(newBuf, makeTerm)
-    api.nvim_buf_set_option(newBuf, "filetype", "Terminal")
-    api.nvim_buf_set_option(newBuf, 'buflisted', false)
-    api.nvim_buf_set_name(newBuf, name)
-    self.bufs[self.numTerms] = {focused = false,
-                                name = name,
-                                bufNr = newBuf,
-                                index = self.numTerms}
+  self.numTerms = self.numTerms + 1
+  local newBuf = api.nvim_create_buf(false, false)
+  local name = 'Terminal ' .. self.numTerms
+  api.nvim_buf_call(newBuf, makeTerm)
+  api.nvim_set_option_value('filetype', 'Terminal', {buf=newBuf})
+  api.nvim_set_option_value('buflisted', false, {buf=newBuf})
+  api.nvim_buf_set_name(newBuf, name)
+  local buf = {
+    focused = false,
+    name = name,
+    bufNr = newBuf,
+    index = self.numTerms
+  }
+  self.bufs[self.numTerms] = buf
+  self.bufsById[buf.bufNr] = buf
+  util.debug('Created terminal ' .. self.numTerms .. ' for buffer ' .. buf.bufNr)
 end
 
-function Terminals:termWin()
-    local bufNr
-    for index, buf in pairs(self.bufs) do
-        for _, win in pairs(api.nvim_list_wins()) do
-            bufNr = api.nvim_win_get_buf(win)
-            if bufNr == buf.bufNr then
-                return win
-            end
-        end
+--- Get the bufnumber of the first terminal window 
+--- (used to determine whether >0 Terminals are in view)
+function Terminals:termVisible()
+  local winBufs = util.windowBufs()
+  for _, buf in pairs(self.bufs) do
+    if winBufs[buf.bufNr] ~= nil then
+      return true
     end
-    return nil
+  end
+  return false
 end
 
-
-function Terminals:focus()
-    for index, buf in pairs(self.bufs) do
-        if self:isAttached(index) then
-            buf.focused = true
-        end
-    end
-end
-
+--- Set the currently occupied window as the current terminal buffer (if it is a terminal buffer)
+--- Deletes the record of any terminals that were closed outside of the neoWin API (ie. via the terminal process exiting)
 function Terminals:setCurrent()
-    local thisBuf = api.nvim_get_current_buf()
-    local found
-    for index, buf in pairs(self.bufs) do
-        if buf.bufNr == thisBuf then
-            self.recent = index
-        end
+  local thisBuf = api.nvim_get_current_buf()
 
-        found = false
-        for _, bufNr in pairs(api.nvim_list_bufs()) do
-            if bufNr == buf.bufNr then
-                found = true
-            end
-        end
-        if not found then
-            self:delete(index)
-        end
+  if self.bufsById[thisBuf] ~= nil then
+    self.recent = self.bufsById[thisBuf].index
+    util.debug('Set recent terminal-buffer index to ' .. self.recent)
+  end
+
+  local openBufs = {}
+  -- util.debug('FINDING BUFFERS')
+  for _, bufNr in pairs(api.nvim_list_bufs()) do
+    -- util.debug('Found open buffer ' .. bufNr)
+    openBufs[bufNr] = true
+  end
+
+  for index, buf in pairs(self.bufs) do
+    if openBufs[buf.bufNr] == nil then
+      util.debug('Terminal buffer ' .. buf.index .. ' (ID ' .. buf.bufNr .. ') does not exist - deleting the terminal record')
+      self:delete(index)
     end
+  end
 end
 
+--- Delete the local record of a terminal buffer (specified by its index)
+--- Defalt to the most recently open terminal
+--- @param termIndex integer
 function Terminals:delete(termIndex)
-    termIndex = termIndex or self.recent
-    self.bufs[termIndex] = nil
-    self.numTerms = self.numTerms - 1
-    for index, buf in pairs(self.bufs) do
-        if index > termIndex then
-            if buf.name == 'Terminal ' .. index then
-                local newName = 'Terminal ' .. index - 1
-                buf.name = newName
-                api.nvim_buf_set_name(buf.bufNr, newName)
-            end
-            buf.index = buf.index - 1
-            self.bufs[index - 1] = buf
-        end
-        if index == self.numTerms + 1 then
-            self.bufs[index] = nil
-        end
-    end
+  util.debug('Deleting terminal ' .. termIndex)
+  termIndex = termIndex or self.recent
+  self.numTerms = self.numTerms - 1
+  local buf = self.bufs[termIndex]
+  table.remove(self.bufs, termIndex)
+  table.remove(self.bufsById, buf.bufNr)
 
+  -- Rename remaining default-named terminals
+  local namePat = '^Terminal %d+$'
+  for index, buf in pairs(self.bufs) do
+    if string.match(buf.name, namePat) then
+      local newName = 'Terminal ' .. index
+      buf.name = newName
+      api.nvim_buf_set_name(buf.bufNr, newName)
+    end
+  end
 end
 
-function Terminals:isAttached(termIndex)
-    local bufNr
-    local buf = self.bufs[termIndex]
-    for _, win in pairs(api.nvim_list_wins()) do
-        bufNr = api.nvim_win_get_buf(win)
-        if bufNr == buf.bufNr then
-            return true
-        end
-    end
-    return false
+--- Check if a terminal at index {termIndex} is currently in view
+--- if it is, return its window ID 
+function Terminals:getWindowId(termIndex)
+  local bufNr
+  local buf = self.bufs[termIndex]
+  local winBufs = util.windowBufs()
+  return winBufs[buf.bufNr]
 end
 
+function Terminals:firstWindowId()
+  for i = 1,self.numTerms do
+    local win = self:getWindowId(i)
+    if win ~= nil then return win end
+  end
+end
+
+---Create and attach a new terminal window
 function Terminals:newTerm()
     self:createTerm()
     self:attach(self.numTerms)
 end
 
 function Terminals:attach(termIndex)
+    util.debug('Attaching terminal ' .. termIndex)
     self.toggled = true
     termIndex = termIndex or self.recent
-    if self:isAttached(termIndex) then
-        for _, win in pairs(api.nvim_list_wins()) do
-            local buf = api.nvim_win_get_buf(win)
-            if buf == self.bufs[termIndex].bufNr then
-                api.nvim_set_current_win(win)
-            end
-        end
-        return
+    local buf = self.bufs[termIndex]
+
+    -- If the terminal is attached already, just focus it
+    local winBuf = self:getWindowId(termIndex)
+    if winBuf ~= nil then
+      util.debug('Terminal #' .. termIndex .. ' is already attached - finding/focusing the window...') 
+      buf.focused = true 
+      api.nvim_set_current_win(winBuf)
+      return
     end
-    local termWin = self:termWin()
-    if termWin then
-        api.nvim_set_current_win(termWin)
-        vim.cmd('vsplit')
+
+    -- If we have *another* terminal window focused already,
+    -- then vsplit with that terminal window before focusing the existing term.
+    -- Otherwise, hsplit a new terminal to the top.
+    local visibleTermWin = self:firstWindowId() 
+    if visibleTermWin ~= nil then
+      local currWin = api.nvim_get_current_win()
+      api.nvim_set_current_win(visibleTermWin)
+      vim.cmd('vsplit')
+      vim.api.nvim_set_current_win(currWin)
     else
-        vim.cmd('topleft split')
-        local lines = vim.o.lines
-        local toResize = .25 * lines
-        vim.cmd('resize ' .. toResize)
+      vim.cmd('topleft split')
+      local lines = vim.o.lines
+      local toResize = .25 * lines
+      vim.cmd('resize ' .. toResize)
     end
-    self.bufs[termIndex].focused = true
-    api.nvim_win_set_buf(0, self.bufs[termIndex].bufNr)
+
+    -- At this point you're residing in the window that should hold the new term
+    -- So we just assign the terminal buffer to window-0
+
+    buf.focused = true
+    util.debug('Setting current-window buffer to ' .. buf.bufNr)
+    api.nvim_win_set_buf(0, buf.bufNr)
     self.recent = termIndex
+    -- scroll to bottom of terminal 
     vim.cmd('goto 99999999')
 end
 
+function Terminals:cycleTerm(plus)
+  if self.numTerms == 0 then return end
+  local thisBuf = api.nvim_get_current_buf()
+  local bufIndex = self.bufsById[thisBuf].index
+  local offset = plus and 1 or -1
+  local wrapAround = plus and 1 or #self.bufs
+  local nextBuf = self.bufs[bufIndex+offset] or self.bufs[wrapAround]
+  api.nvim_win_set_buf(0, nextBuf.bufNr)
+  util.debug('Setting current (cycleTerm())')
+  self:setCurrent()
+end
+
+--- Cycle the current terminal window to the next terminal buffer 
 function Terminals:nextTerm()
-   local thisBuf = api.nvim_get_current_buf()
-   for index, buf in pairs(self.bufs) do
-       if buf.bufNr == thisBuf then
-           local newIndex = index + 1
-           if newIndex > self.numTerms then
-               newIndex = 1
-           end
-           -- self.recent = newIndex
-           api.nvim_win_set_buf(0, self.bufs[newIndex].bufNr)
-           break
-       end
-   end
-   self:setCurrent()
+  self:cycleTerm(true)
 end
 
+
+--- Cycle the current terminal window to the previous terminal buffer 
 function Terminals:prevTerm()
-   local thisBuf = api.nvim_get_current_buf()
-   for index, buf in pairs(self.bufs) do
-       if buf.bufNr == thisBuf then
-           local newIndex = index - 1
-           if newIndex == 0 then
-               newIndex = self.numTerms
-           end
-           -- self.recent = newIndex
-           api.nvim_win_set_buf(0, self.bufs[newIndex].bufNr)
-           break
-       end
-   end
-   self:setCurrent()
+  self:cycleTerm(false)
 end
 
+
+--- Toggle the terminal pane at the top of the buffer
 function Terminals:toggle()
-    self:setCurrent()
-    if self.numTerms == 0 then
-        self:newTerm()
-        self.toggled = true
-        return
-    end
-    -- toggle on
-    if not self.toggled then
-        local found = false
-        self.toggled = true
-        for index, buf in pairs(self.bufs) do
-            if buf.focused then
-                found = true
-                self:attach(index)
-            end
-        end
-        if not found then
-            self:attach()
-        end
+  util.debug('Setting current (toggle())')
+  self:setCurrent()
+  if self.numTerms == 0 then
+    self:newTerm()
+    self.toggled = true
+    return
+  end
 
-    else
-    -- toggle off
-        self.toggled = false
-        local attachedBuf, ft
-        local found
-        for index, buf in pairs(self.bufs) do
-            found = false
-            for _, win in pairs(api.nvim_list_wins()) do
-                attachedBuf = api.nvim_win_get_buf(win)
-                ft = api.nvim_buf_get_option(attachedBuf, 'filetype')
-                if buf.bufNr == attachedBuf then
-                    found = true
-                end
-            end
-            buf.focused = found
-        end
-        for _, win in pairs(api.nvim_list_wins()) do
-            attachedBuf = api.nvim_win_get_buf(win)
-            ft = api.nvim_buf_get_option(attachedBuf, 'filetype')
-            if ft == 'Terminal' then
-                api.nvim_win_close(win, {force=true})
-            end
-        end
+  -- toggle on
+  if not self.toggled then
+    local found = false
+    self.toggled = true
+    for index, buf in pairs(self.bufs) do
+      if buf.focused then
+        found = true
+        self:attach(index)
+      end
     end
-    -- self.toggled = not self.toggled
+
+    -- fallback - attach the most recently focused terminal 
+    if not found then
+      self:attach()
+    end
+
+  -- toggle off
+  else
+    self.toggled = false
+    local winBufs = util.windowBufs()
+    for bufId, winId in pairs(winBufs) do
+      if self.bufsById[bufId] ~= nil then
+        api.nvim_win_close(winId, true)
+      end
+    end
+  end
 end
 
+--- Rename a terminal buffer
 function Terminals:renameTerm(termIndex)
     termIndex = termIndex or self.recent
     local newName = vim.fn.input('New name for ' .. self.bufs[termIndex].name .. ': ')
@@ -222,11 +243,10 @@ function Terminals:renameTerm(termIndex)
     self.bufs[termIndex].name = newName
 end
 
+--- Debug - show the current state of the terminal buffers
 function Terminals:show()
     print(vim.inspect(self.bufs))
 end
 
-T = Terminals:new()
-return {
-    terminals = T
-}
+
+return Terminals

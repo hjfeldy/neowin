@@ -1,0 +1,32 @@
+local api = vim.api
+
+local M = {}
+
+function M.debug(msg)
+  if not vim.g.NEOWIN_DEBUG then
+    return
+  end
+  vim.notify(msg, vim.log.levels.DEBUG)
+end
+
+function M.showBufs(prefix)
+  prefix = prefix or ''
+  local s = 'Current buffers:'
+  for _, buf in pairs(api.nvim_list_bufs()) do
+    s = s .. '\n' .. buf .. ': ' .. api.nvim_buf_get_name(buf)
+  end
+  M.debug(prefix .. s)
+end
+
+---Generate a map of bufferId->windowId for all visible windows
+function M.windowBufs()
+  local out = {}
+  for _, win in pairs(api.nvim_list_wins()) do
+    local buf = api.nvim_win_get_buf(win)
+    out[buf] = win
+  end
+  return out
+end
+
+-- function M.
+return M
