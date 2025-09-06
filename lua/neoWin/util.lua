@@ -2,16 +2,26 @@ local api = vim.api
 
 local M = {}
 
-function M.debug(msg, force)
-  if not vim.g.NEOWIN_DEBUG and not force then
+function M.debug(...)
+  local msgs = { ... }
+  local s = ''
+  for _, msg in pairs(msgs) do
+    if type(msg) == 'table' then
+      s = s .. '\n' .. vim.inspect(msg) .. '\n'
+    else
+      s = s .. tostring(msg) .. ' '
+    end
+  end
+  if not vim.g.NEOWIN_DEBUG then
     return
   end
-  vim.notify(msg, vim.log.levels.DEBUG)
+  vim.notify(s, vim.log.levels.DEBUG)
 end
 
 function M.toggleDebug() 
   vim.g.NEOWIN_DEBUG = not vim.g.NEOWIN_DEBUG
-  M.debug('Toggled neoWin logging to ' .. (vim.g.NEOWIN_DEBUG and 'true' or 'false'), true)
+  local tf = vim.g.NEOWIN_DEBUG and 'true' or 'false'
+  vim.notify('Toggled neoWin debug logging to ' .. tf)
 end
 
 function M.showBufs(prefix)
@@ -31,6 +41,16 @@ function M.windowBufs()
     out[buf] = win
   end
   return out
+end
+
+function M.openBufs() 
+  local openBufs = {}
+  -- util.debug('FINDING BUFFERS')
+  for _, bufNr in pairs(api.nvim_list_bufs()) do
+    -- util.debug('Found open buffer ' .. bufNr)
+    openBufs[bufNr] = api.nvim_buf_get_name(bufNr)
+  end
+  return openBufs
 end
 
 -- function M.

@@ -31,7 +31,7 @@ local Terminals = {
   bufs = {},
   bufsById = {},
   recent=nil,
-  toggled = false,
+  toggled=false
 }
 
 --- Create a new Terminal
@@ -76,12 +76,9 @@ function Terminals:setCurrent()
     util.debug('Set recent terminal-buffer index to ' .. self.recent)
   end
 
-  local openBufs = {}
-  -- util.debug('FINDING BUFFERS')
-  for _, bufNr in pairs(api.nvim_list_bufs()) do
-    -- util.debug('Found open buffer ' .. bufNr)
-    openBufs[bufNr] = true
-  end
+  local openBufs = util.openBufs()
+  util.debug('Open buffers:', openBufs)
+  util.debug('Termbuf records:', self.bufs)
 
   for index, buf in pairs(self.bufs) do
     if openBufs[buf.bufNr] == nil then
@@ -116,8 +113,12 @@ end
 --- Check if a terminal at index {termIndex} is currently in view
 --- if it is, return its window ID 
 function Terminals:getWindowId(termIndex)
+  util.debug('Getting window ID for terminal # ' .. termIndex)
+  util.debug('Term Bufs:', self.bufs)
+  util.debug('Open Bufs:', util.openBufs())
   local bufNr
   local buf = self.bufs[termIndex]
+  util.debug('Buf:', buf)
   local winBufs = util.windowBufs()
   return winBufs[buf.bufNr]
 end
@@ -144,7 +145,7 @@ function Terminals:attach(termIndex)
     -- If the terminal is attached already, just focus it
     local winBuf = self:getWindowId(termIndex)
     if winBuf ~= nil then
-      util.debug('Terminal #' .. termIndex .. ' is already attached - finding/focusing the window...') 
+      util.debug('Terminal #' .. termIndex .. ' is already attached to window ' .. winBuf .. '- focusing the window...') 
       buf.focused = true 
       api.nvim_set_current_win(winBuf)
       return

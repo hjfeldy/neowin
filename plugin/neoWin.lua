@@ -17,6 +17,7 @@ for _, event in pairs({
   api.nvim_create_autocmd(event, {
     pattern = {'*'},
     callback = function(ev)
+      util.debug('Caught event ' .. event .. ' - setting current terminal')
       Terminals:setCurrent()
     end
   })
