@@ -77,8 +77,8 @@ function Terminals:setCurrent()
   end
 
   local openBufs = util.openBufs()
-  util.debug('Open buffers:', openBufs)
-  util.debug('Termbuf records:', self.bufs)
+  -- util.debug('Open buffers:', openBufs)
+  -- util.debug('Termbuf records:', self.bufs)
 
   for index, buf in pairs(self.bufs) do
     if openBufs[buf.bufNr] == nil then
@@ -87,6 +87,25 @@ function Terminals:setCurrent()
     end
   end
 end
+
+function Terminals:setFocus(reason)
+  util.debug('SETTING FOCUS - ' .. reason)
+  local visibleTermWin = self:firstWindowId() 
+  if visibleTermWin == nil then
+    util.debug('No terminals are visible - aborting setFocus()')
+    return
+  end
+  for index, buf in pairs(self.bufs) do
+    util.debug('Getting window id for buf:', buf)
+    local winId = self:getWindowId(index)
+    util.debug('Window ID for terminal #' .. index .. ': ' .. (winId or 'nil'))
+    if winId == nil then
+      util.debug('Terminal ' .. index .. ' (Buffer ' .. buf.bufNr .. ') is not in view - marking it as unfocused')
+      buf.focused = false
+    end
+  end
+end
+
 
 --- Delete the local record of a terminal buffer (specified by its index)
 --- Defalt to the most recently open terminal
@@ -114,14 +133,17 @@ end
 --- if it is, return its window ID 
 function Terminals:getWindowId(termIndex)
   util.debug('Getting window ID for terminal # ' .. termIndex)
-  util.debug('Term Bufs:', self.bufs)
-  util.debug('Open Bufs:', util.openBufs())
+  -- util.debug('Term Bufs:', self.bufs)
+  -- util.debug('Open Bufs:', util.openBufs())
   local bufNr
   local buf = self.bufs[termIndex]
-  util.debug('Buf:', buf)
+  util.debug('Terminal Buf:', buf)
   local winBufs = util.windowBufs()
-  return winBufs[buf.bufNr]
-end
+
+  local winId = winBufs[buf.bufNr]
+  util.debug('Terminal #' .. termIndex .. ' Buffer=' .. buf.bufNr .. ', Window=' .. (winId or 'nil'))
+  return winId
+  end
 
 function Terminals:firstWindowId()
   for i = 1,self.numTerms do

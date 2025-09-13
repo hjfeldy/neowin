@@ -17,8 +17,21 @@ for _, event in pairs({
   api.nvim_create_autocmd(event, {
     pattern = {'*'},
     callback = function(ev)
-      util.debug('Caught event ' .. event .. ' - setting current terminal')
+      -- util.debug('Caught event ' .. event .. ' - setting current terminal')
       Terminals:setCurrent()
+    end
+  })
+end
+
+for _, event in pairs({
+  'TermClose',
+  'WinEnter',
+}) do
+  api.nvim_create_autocmd(event, {
+    pattern = {'*'},
+    callback = function(ev)
+      -- util.debug('Caught event ' .. event .. ' - setting current terminal')
+      Terminals:setFocus(event)
     end
   })
 end
