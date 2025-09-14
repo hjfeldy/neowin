@@ -44,7 +44,7 @@ function Terminals:createTerm()
   api.nvim_set_option_value('buflisted', false, {buf=newBuf})
   api.nvim_buf_set_name(newBuf, name)
   local buf = {
-    focused = false,
+    focused = true,
     name = name,
     bufNr = newBuf,
     index = self.numTerms
@@ -89,8 +89,12 @@ function Terminals:setCurrent()
 end
 
 function Terminals:setFocus(reason)
-  util.debug('SETTING FOCUS - ' .. reason)
+  util.debug('SETTING FOCUS - ' .. (reason or 'nil'))
   local visibleTermWin = self:firstWindowId() 
+  if not self.toggled then
+    util.debug('Terminal Pane is not toggled - aborting setFocus()')
+    return
+  end
   if visibleTermWin == nil then
     util.debug('No terminals are visible - aborting setFocus()')
     return
@@ -102,6 +106,9 @@ function Terminals:setFocus(reason)
     if winId == nil then
       util.debug('Terminal ' .. index .. ' (Buffer ' .. buf.bufNr .. ') is not in view - marking it as unfocused')
       buf.focused = false
+    else
+      util.debug('Terminal ' .. index .. ' (Buffer ' .. buf.bufNr .. ') is in view - marking it as focused')
+      buf.focused = true
     end
   end
 end
@@ -159,7 +166,7 @@ function Terminals:newTerm()
 end
 
 function Terminals:attach(termIndex)
-    util.debug('Attaching terminal ' .. termIndex)
+    util.debug('Attaching terminal ' .. (termIndex or 'nil'))
     self.toggled = true
     termIndex = termIndex or self.recent
     local buf = self.bufs[termIndex]
@@ -210,6 +217,7 @@ function Terminals:cycleTerm(plus)
   api.nvim_win_set_buf(0, nextBuf.bufNr)
   util.debug('Setting current (cycleTerm())')
   self:setCurrent()
+  self:setFocus('cycleTerm')
 end
 
 --- Cycle the current terminal window to the next terminal buffer 
@@ -252,6 +260,7 @@ function Terminals:toggle()
 
   -- toggle off
   else
+    -- self:setFocus('toggle')
     self.toggled = false
     local winBufs = util.windowBufs()
     for bufId, winId in pairs(winBufs) do
