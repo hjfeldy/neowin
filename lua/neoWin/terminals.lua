@@ -114,6 +114,7 @@ function Terminals:setFocus(reason)
 end
 
 
+
 --- Delete the local record of a terminal buffer (specified by its index)
 --- Defalt to the most recently open terminal
 --- @param termIndex integer

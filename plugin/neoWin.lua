@@ -38,15 +38,6 @@ for _, event in pairs({
   })
 end
 
-local EVENT_COUNT = 0
-api.nvim_create_autocmd('WinEnter', {
-  pattern = {'*'},
-  callback = function() 
-    print('entered: ' .. EVENT_COUNT)
-    EVENT_COUNT = EVENT_COUNT + 1
-  end
-})
-
 for _, event in pairs({'TermClose', 'WinNew'}) do
   api.nvim_create_autocmd(event, {
     pattern = {'*'},
