@@ -1,29 +1,40 @@
 local terminals = require('neoWin.terminals')
+local api = vim.api
+
 local M = {}
 
----Close and reopen the terminal pane before/after deleting a buffer
----This avoids annoying behavior where the terminals take over the entire window
+local function listedBufs()
+  local out = {}
+  for _, buf in ipairs(api.nvim_list_bufs()) do
+    local listed = api.nvim_get_option_value('buflisted', {buf=buf})
+    local name = api.nvim_buf_get_name(buf)
+    if listed then
+      out[#out+1] = name
+    end
+  end
+  return out
+end
+
 function M.smartDelete(force) 
   if vim.o.filetype == 'Terminal' then
-    print('Do not close terminal buffers with bdelete - exit the terminal process')
+    vim.notify('Do not close terminal buffers with bdelete - exit the terminal process explicitly', vim.log.levels.WARN)
     return
   end
-  local hasTerm = terminals:termVisible() 
-  if hasTerm then
-    terminals:toggle()
-  end
-
-  local cmd = 'bdelete'
+  local delCmd = 'bdelete'
   if force then
-    cmd = cmd .. '!'
+    delCmd = delCmd .. '!'
   end
-  vim.cmd(cmd)
 
-  if hasTerm then
-    terminals:toggle()
-    -- print('feeding keys')
-    vim.api.nvim_feedkeys('<C-\\><C-n><C-w>j', 'n', true)
+  local listed = listedBufs()
+  if #listed == 1 then
+    return vim.cmd(delCmd)
   end
+
+  -- cycle away from the current buffer that we want to delete 
+  -- (such that the "#" alternate buffer resolves to it afterwards)
+  delCmd = delCmd .. ' #' -- delete the previously focused buffer (the 'alternate' buffer in vim-speak)
+  vim.cmd('BufferLineCyclePrev')
+  return vim.cmd(delCmd)
 end
 
 return M
