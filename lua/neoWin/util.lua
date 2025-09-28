@@ -36,7 +36,7 @@ end
 ---Generate a map of bufferId->windowId for all visible windows
 function M.windowBufs()
   local out = {}
-  for _, win in pairs(api.nvim_list_wins()) do
+  for _, win in pairs(api.nvim_tabpgae_list_wins(0)) do
     local buf = api.nvim_win_get_buf(win)
     out[buf] = win
   end
@@ -45,9 +45,9 @@ end
 
 function M.openBufs() 
   local openBufs = {}
-  -- util.debug('FINDING BUFFERS')
-  for _, bufNr in pairs(api.nvim_list_bufs()) do
-    -- util.debug('Found open buffer ' .. bufNr)
+  local winBufs = M.windowBufs()
+  for _, win in pairs(winBufs) do
+    local bufNr = vim.api.nvim_win_get_buf(win)
     openBufs[bufNr] = api.nvim_buf_get_name(bufNr)
   end
   return openBufs

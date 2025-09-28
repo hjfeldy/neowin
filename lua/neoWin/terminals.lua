@@ -10,6 +10,8 @@ local function makeTerm()
     return vim.cmd('e term://' .. shell)
 end
 
+local M = {}
+
 
 --- Terminal Buffer Metadata
 ---@class TermBuffer
@@ -26,6 +28,7 @@ end
 ---@field bufs table<integer, TermBuffer> Map of terminal buffers by their index
 ---@field bufsById table<integer, TermBuffer> Map of terminal buffers by their ID
 ---@field toggled boolean Is the terminal pane toggled?
+
 local Terminals = {
   numTerms = 0,
   bufs = {},
@@ -33,6 +36,18 @@ local Terminals = {
   recent=nil,
   toggled=false
 }
+
+function Terminals:new()
+  local instance = {
+    numTerms = 0,
+    bufs = {},
+    bufsById = {},
+    recent=nil,
+    toggled=false
+  }
+  setmetatable(instance, self)
+  instance.__index = instance
+end
 
 --- Create a new Terminal
 function Terminals:createTerm()
@@ -141,9 +156,6 @@ end
 --- if it is, return its window ID 
 function Terminals:getWindowId(termIndex)
   util.debug('Getting window ID for terminal # ' .. termIndex)
-  -- util.debug('Term Bufs:', self.bufs)
-  -- util.debug('Open Bufs:', util.openBufs())
-  local bufNr
   local buf = self.bufs[termIndex]
   util.debug('Terminal Buf:', buf)
   local winBufs = util.windowBufs()
@@ -285,5 +297,31 @@ function Terminals:show()
     print(vim.inspect(self.bufs))
 end
 
+local tabMap = {}
 
-return Terminals
+function M.registerTab(tabNum)
+  util.debug('Registering tab ' .. tabNum)
+  tabMap[tabNum] = Terminals:new()
+end
+
+function M.deregisterTab(tabNum)
+  util.debug('Deregistering tab ' .. tabNum)
+  tabMap[tabNum] = nil
+end
+
+function wrapForTab(func)
+  local function wrapped()
+    local terminals = tabMap[vim.api.nvim_get_current_tabpage()]
+    func(terminals)
+  end
+  return wrapped
+end
+
+M.renameTerm = wrapForTab(Terminals.renameTerm)
+M.nextTerm = wrapForTab(Terminals.nextTerm)
+M.prevTerm = wrapForTab(Terminals.renameTerm)
+M.newTerm = wrapForTab(Terminals.newTerm)
+M.toggleTerm = wrapForTab(Terminals.toggleTerm)
+M.showTerm = wrapForTab(Terminals.showTerm)
+
+return M
