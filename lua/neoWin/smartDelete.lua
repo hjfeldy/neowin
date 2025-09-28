@@ -37,4 +37,20 @@ function M.smartDelete(force)
   return vim.cmd(delCmd)
 end
 
+function M.smartCloseWin(force)
+  local tabWins = api.nvim_tabpage_list_wins(0)
+  local numWins = 0
+  for _, win in ipairs(tabWins) do
+    local buf = vim.api.nvim_win_get_buf(win)
+    local bufListed = vim.api.nvim_get_option_value('buflisted', {buf=buf})
+    if bufListed then 
+      numWins = numWins+1
+    end
+  end
+
+  if numWins > 1 or force then
+    vim.cmd('close')
+  end
+end
+
 return M
