@@ -12,14 +12,17 @@ local M = {}
 
 
 --- Generate a finder whose results are the current NeoWin terminals 
-local function getFinder()
+--- @param localTab boolean? Should the results be tab-local?
+local function getFinder(localTab)
   return finders.new_table {
-    results = terminals.bufs,
+    results = terminals.getTerminalBufs(localTab),
     entry_maker = function(entry)
+      local prefix = "(" .. util.getTabName(entry.tabNum) .. ")"
+      local fullName = prefix .. " " .. entry.name
       return {
         value = entry,
-        display = entry.name,
-        ordinal=entry.name
+        display = localTab and entry.name or fullName,
+        ordinal = entry.name
       }
     end
   }
@@ -46,6 +49,7 @@ local function detachPreviewer(prompt_bufnr)
   api.nvim_win_set_buf(picker.preview_win, scratchBuf)
 end
 
+
 --- Telescope Action: attach selected terminal to the terminal pane
 --- (toggle the terminal pane if necessary)
 local function selectTerminal(prompt_bufnr)
@@ -53,9 +57,14 @@ local function selectTerminal(prompt_bufnr)
   local entry = action_state.get_selected_entry()
   detachPreviewer(prompt_bufnr)
   actions.close(prompt_bufnr)
-  terminals:setCurrent()
-  terminals:attach(entry.value.index)
+  terminals.refresh()
+  if api.nvim_get_current_tabpage() ~= entry.value.tabNum then
+    api.nvim_set_current_tabpage(entry.value.tabNum)
+    terminals.refresh()
+  end
+  terminals.attach(entry.value.index)
 end
+
 
 --- Telescope Action: Attach terminal buffer in place 
 --- (to the buffer from which Telescope was opened)
@@ -70,19 +79,20 @@ end
 --- Telescope Action: Delete terminal buffer
 local function deleteTerminal(prompt_bufnr)
   local entry = action_state.get_selected_entry()
-  local termBuf = terminals.bufsById[entry.value.bufNr]
+  local termBuf = terminals.getTerminalBufsById(false)[entry.value.bufNr]
   detachPreviewer(prompt_bufnr)
   -- actions.close(prompt_bufnr)
-  terminals:delete(termBuf.index)
+  terminals.delete(termBuf.index)
   local picker = action_state.get_current_picker(prompt_bufnr)
   picker:refresh(getFinder())
 end
+
 
 --- Telescope Action: Rename terminal buffer
 local function renameTerminal(prompt_bufnr)
   local promptWin = api.nvim_get_current_win()
   local entry = action_state.get_selected_entry()
-  local newName = terminals:renameTerm(entry.value.index)
+  local newName = terminals.renameTerm(entry.value.index)
   entry.name = newName
   entry.ordinal = newName
   local picker = action_state.get_current_picker(prompt_bufnr)
@@ -90,15 +100,14 @@ local function renameTerminal(prompt_bufnr)
 end
 
 
-
 function M.termPick(opts)
-  terminals:setCurrent()
+  terminals.refresh()
   opts = opts or {}
   opts.dynamic_preview_title = true
   pickers.new(opts, {
     prompt_title = "Terminals",
     sorter = conf.generic_sorter(opts),
-    finder = getFinder(),
+    finder = getFinder(opts.localTab),
     attach_mappings = function(prompt_bufnr, map)
       actions.select_default:replace(selectTerminal)
       map("n", "n", attachInPlace)
