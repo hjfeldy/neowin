@@ -43,7 +43,13 @@ function M.smartCloseWin(force)
   for _, win in ipairs(tabWins) do
     local buf = vim.api.nvim_win_get_buf(win)
     local bo = vim.bo[buf]
-    if bo.buflisted or bo.filetype == 'Terminal' then 
+    local whitelist = {
+      ['qf'] = true,
+      ['Terminal'] = true,
+      ['fugitive'] = true,
+      ['help'] = true
+    }
+    if bo.buflisted or whitelist[bo.filetype] then 
       numWins = numWins+1
     end
   end
