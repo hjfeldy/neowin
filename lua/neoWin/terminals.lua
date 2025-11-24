@@ -144,7 +144,7 @@ end
 
 --- Toggle the terminal pane at the top of the buffer
 function Terminals:toggle()
-  self:refresh()
+  self:refresh('toggle')
   if self.numTerms == 0 then
     -- print('Creating new term (nothing to toggle on)')
     self:newTerm()
@@ -192,7 +192,10 @@ function Terminals:delete(termIndex)
   local buf = self.bufs[termIndex]
   table.remove(self.bufs, termIndex)
   table.remove(self.bufsById, buf.bufNr)
-  local ok, _ = pcall(api.nvim_buf_delete(buf.bufNr, {force=true}))
+  local bufs = util.openBufs()
+  if bufs[buf.bufNr] then
+    api.nvim_buf_delete(buf.bufNr, {force=true})
+  end
 
   -- Rename remaining default-named terminals
   self:renameDefaults()
@@ -210,7 +213,7 @@ function Terminals:cycleTerm(plus)
   local nextBuf = self.bufs[bufIndex+offset] or self.bufs[wrapAround]
   api.nvim_win_set_buf(0, nextBuf.bufNr)
   util.debug('Setting current (cycleTerm())')
-  self:refresh()
+  self:refresh('cycle')
 end
 
 
@@ -268,6 +271,8 @@ function Terminals:cleanup()
   local openBufs = util.openBufs()
   for index, buf in pairs(self.bufs) do
     if openBufs[buf.bufNr] == nil then
+      util.debug('Deleting terminal ' .. buf.index .. ' (buffer ' .. buf.bufNr .. ')')
+      util.debug('Open Bufs: ',  openBufs)
       self:delete(index)
     end
   end
@@ -304,17 +309,18 @@ function Terminals:renameDefaults()
   for index, buf in pairs(self.bufs) do
     if string.match(buf.name, namePat) then
       local baseName = termName(index)
-      if buf.name == baseName then
-        local newName = "(" .. util.getTabName(buf.tabNum) .. ") " .. baseName
-        api.nvim_buf_set_name(buf.bufNr, newName)
-      end
+      local prefix = "(" .. util.getTabName(buf.tabNum) .. ")"
+      local newName = prefix .. ' ' .. baseName
+      api.nvim_buf_set_name(buf.bufNr, newName)
     end
   end
 end
 
 
+
 --- Refresh the terminal state
-function Terminals:refresh()
+function Terminals:refresh(reason)
+  util.debug('Refreshing for reason ', reason)
   self:cleanup()
   self:setRecent()
   self:setFocus()
@@ -324,6 +330,20 @@ end
 
 local tabMap = {}
 local M = {}
+
+---Refresh function to rename the default-named tabs
+---This plugin expects all tabs to have the "name" variable set
+---(bufferline.nvim sets this variable when calling BufferlineTabRename)
+---So we must force any unnamed tabs to have *some* name
+function M.renameDefaultTabs()
+  for _, tabNum in ipairs(api.nvim_list_tabpages()) do
+    local name = vim.t[tabNum].name
+    if name == nil then
+      name = tostring(tabNum)
+      api.nvim_tabpage_set_var(tabNum, 'name', name)
+    end
+  end
+end
 
 --- Create a Terminals API for a tab
 function M.registerTab(tabNum)

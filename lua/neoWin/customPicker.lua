@@ -28,14 +28,29 @@ local function getFinder(localTab)
   }
 end
 
+local function getAllTxt(bufNr) 
+  local lineCount = api.nvim_buf_line_count(bufNr)
+  local lines = api.nvim_buf_get_lines(bufNr, 1, lineCount, false)
+  local s = ''
+  for i, ln in ipairs(lines) do
+    s = s .. ln .. '\n'
+  end
+  return s
+end
+
 --- Preview a terminal entry 
 --- (attach the terminal buffer directly to the preview window,
 --- and scroll to the bottom)
 local function previewTerm(self, entry, status)
   local termBuf = entry.value.bufNr
-  api.nvim_win_set_buf(status.preview_win, termBuf)
+  local previewBuf = api.nvim_win_get_buf(status.preview_win)
+  -- api.nvim_win_set_buf(status.preview_win, termBuf)
+  -- local txt = getAllTxt(termBuf)
   local lineCount = api.nvim_buf_line_count(termBuf)
+  local lines = api.nvim_buf_get_lines(termBuf, 0, lineCount, false)
+  api.nvim_buf_set_lines(previewBuf, 0, lineCount, false, lines)
   api.nvim_win_set_cursor(status.preview_win, {lineCount, 1})
+  api.nvim_set_option_value('filetype', 'Terminal', {buf=previewBuf})
 end
 
 
@@ -57,10 +72,10 @@ local function selectTerminal(prompt_bufnr)
   local entry = action_state.get_selected_entry()
   detachPreviewer(prompt_bufnr)
   actions.close(prompt_bufnr)
-  terminals.refresh()
+  -- terminals.refresh('selectTerminal')
   if api.nvim_get_current_tabpage() ~= entry.value.tabNum then
     api.nvim_set_current_tabpage(entry.value.tabNum)
-    terminals.refresh()
+    -- terminals.refresh('selectTerminal')
   end
   terminals.attach(entry.value.index)
 end
@@ -101,7 +116,7 @@ end
 
 
 function M.termPick(opts)
-  terminals.refresh()
+  -- terminals.refresh('termPick')
   opts = opts or {}
   opts.dynamic_preview_title = true
   pickers.new(opts, {

@@ -8,35 +8,41 @@ local util = require('neoWin.util')
 -- Whenever a window/buffer is closed through some user action external to this API,
 -- we need to keep track of those changes (ie. delete terminals from the "bufs" and "bufsById" variables).
 -- We also need to keep track of which terminal window was last focused 
-for _, event in pairs({
-  'TermClose',
-  'BufWinEnter',
-  'WinEnter',
-  'WinLeave',
-}) do
-  api.nvim_create_autocmd(event, {
-    pattern = {'*'},
-    callback = function(ev)
-      util.debug('Caught event ' .. event .. ' - setting current terminal')
-      terminals:refresh()
-    end
-  })
-end
+-- for _, event in pairs({
+--   'TermClose',
+--   -- 'BufWinEnter',
+--   -- 'WinEnter',
+--   -- 'WinLeave',
+-- }) do
+--   api.nvim_create_autocmd(event, {
+--     pattern = {'*'},
+--     callback = function(ev)
+--       local ft = api.nvim_get_option_value('filetype', {buf=0})
+--       if ft == 'TelescopePrompt' then
+--         return
+--       end
+--       util.debug('Caught event ' .. event .. ' - refreshing terminals (current filetype = ' .. ft .. ')')
+--       terminals.refresh('TermClose')
+--     end
+--   })
+-- end
 
-for _, event in pairs({
-  -- 'TermClose',
-  'WinEnter',
-  -- 'WinLeave',
-  -- 'WinNew',
-}) do
-  api.nvim_create_autocmd(event, {
-    pattern = {'*'},
-    callback = function(ev)
-      util.debug('Caught event ' .. event .. ' - setting current terminal')
-      terminals:refresh()
-    end
-  })
-end
+-- for _, event in pairs({
+--   -- 'TermClose',
+--   'WinEnter',
+--   -- 'WinLeave',
+--   -- 'WinNew',
+-- }) do
+--   api.nvim_create_autocmd(event, {
+--     pattern = {'*'},
+--     callback = function(ev)
+--       local ft = api.nvim_get_option_value('filetype', {buf=0})
+--       util.debug('Caught event ' .. event .. ' - refreshing terminals (current filetype = ' .. ft .. ')')
+--       -- util.debug('Caught event ' .. event .. ' - setting current terminal')
+--       terminals.refresh('WinEnter')
+--     end
+--   })
+-- end
 
 for _, event in pairs({'TermClose', 'WinNew'}) do
   api.nvim_create_autocmd(event, {
