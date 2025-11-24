@@ -33,7 +33,7 @@ function M.smartDelete(force)
   -- cycle away from the current buffer that we want to delete 
   -- (such that the "#" alternate buffer resolves to it afterwards)
   delCmd = delCmd .. ' #' -- delete the previously focused buffer (the 'alternate' buffer in vim-speak)
-  vim.cmd('BufferLineCyclePrev')
+  vim.cmd('b#')
   return vim.cmd(delCmd)
 end
 
