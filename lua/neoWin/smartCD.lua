@@ -2,7 +2,12 @@ local util = require('util')
 
 local M = {}
 
+--- Element in a tree
 local Node = {}
+
+--- Construct a new element for a tree
+--- @param val any?
+--- @param depth integer?
 function Node:new(val, depth)
   depth = depth or 0
   local inst = {next=nil, prev=nil, val=val, depth=depth}
@@ -11,14 +16,22 @@ function Node:new(val, depth)
   return inst
 end
 
+--- Construct a child node for this node 
+--- @param val any
+--- @return nil
 function Node:addChild(val)
   local newNode = Node:new(val, self.depth+1)
   self.next = newNode
   newNode.prev = self
 end
 
-local LinkedList = {}
-function LinkedList:new() 
+--- Linked List with a "current" value in addition to a head
+--- The list can be traversed up/down, but gets cut off whenever an item is added.
+--- When adding a new item, the current selection becomes the new head,
+--- and any of its old children are discarded. 
+--- This allows us to implement a rudimentary jumplist 
+local TraversableLinkedList = {}
+function TraversableLinkedList:new() 
   local root = Node:new()
   local inst = {head=root, current=root}
   setmetatable(inst, self)
@@ -26,13 +39,17 @@ function LinkedList:new()
   return inst
 end
 
-function LinkedList:addVal(val)
+--- Add a value to the linked list
+--- @param val any
+function TraversableLinkedList:addVal(val)
   self.current:addChild(val)
   self.current = self.current.next
   self.head = self.current
 end
 
-function LinkedList:traverse(forwards)
+--- Move the current selection forwards/backwards in the list 
+--- @param forwards boolean 
+function TraversableLinkedList:traverse(forwards)
   if forwards and self.current.next ~= nil then
     self.current = self.current.next
   end
@@ -42,10 +59,17 @@ function LinkedList:traverse(forwards)
   return self.current.val
 end
 
-M.JUMP_LIST = LinkedList:new()
-M.LOCAL_JUMP_LIST = LinkedList:new()
+--- change-directory jumplist
+M.JUMP_LIST = TraversableLinkedList:new()
+--- local-window change-directory jumplist
+M.LOCAL_JUMP_LIST = TraversableLinkedList:new()
+--- Was the most recent explicit directory change a local-window change?
 M.LOCAL_WINDOW = true
 
+--- Change directory to the current buffer's base directory
+--- Record the change in the relevant jumplist
+--- @param localWindow boolean use the command "lcd" instead of "cd"
+--- @return nil
 function M.smartCD(localWindow)
   local jumpList = localWindow and M.LOCAL_JUMP_LIST or M.JUMP_LIST
   local dirname = vim.fs.dirname(vim.api.nvim_buf_get_name(0))
@@ -60,6 +84,8 @@ function M.smartCD(localWindow)
   M.LOCAL_WINDOW = localWindow
 end
 
+--- Change directory to the previous element in the cd jumplist
+--- @return nil
 function M.jumpBack()
   local jumpList = M.LOCAL_WINDOW and M.LOCAL_JUMP_LIST or M.JUMP_LIST
   local lastDir = jumpList:traverse(false)
@@ -68,6 +94,8 @@ function M.jumpBack()
   vim.cmd(cmd .. ' ' .. lastDir)
 end
 
+--- Change directory to the next element in the cd jumplist
+--- @return nil
 function M.jumpForwards()
   local jumpList = M.LOCAL_WINDOW and M.LOCAL_JUMP_LIST or M.JUMP_LIST
   local nextDir = jumpList:traverse(true)
