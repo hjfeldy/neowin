@@ -6,11 +6,16 @@ local util = require('util')
 --- @field val integer
 --- @field prev StackNode
 --- @field next StackNode
+--- @field id integer
 local StackNode = {}
+
+
+local NODE_ID = 0
 
 --- @param val integer
 function StackNode:new(val)
-  local inst = {val=val, prev=nil, next=nil}
+  NODE_ID = NODE_ID + 1
+  local inst = {val=val, prev=nil, next=nil, id=NODE_ID}
   setmetatable(inst, self)
   self.__index = self
   return inst
@@ -22,6 +27,15 @@ function StackNode:add(val)
   newNode.prev = self
   self.next = newNode
   return newNode
+end
+
+function StackNode:remove()
+  if self.prev ~= nil then
+    self.prev.next = self.next
+  end
+  if self.next ~= nil then
+    self.next.prev = self.prev
+  end
 end
 
 --- Maximum-length front-push list
@@ -41,6 +55,7 @@ function Stack:new(maxLen, existingItems)
   maxLen = maxLen or 999
 
   local inst = {head=nil, tail=nil, count=0, maxLen=maxLen}
+  util.debug('CREATED NODE WITH COUNT ' .. inst.count)
   setmetatable(inst, self)
   self.__index = self
 
@@ -48,7 +63,7 @@ function Stack:new(maxLen, existingItems)
     existingItems = vim.list_slice(existingItems, 0, maxLen)
   end
   for _, item in ipairs(existingItems) do
-    self:add(item)
+    inst:add(item)
   end
   return inst
 end
@@ -93,26 +108,32 @@ end
 -- n1.next = nil, n1.prev = n3
 -- n3.next = n1, n3.prev = nil
 
+--- @param node StackNode
+function Stack:remove(node)
+  if node.id == self.head.id then
+    self.head = node.prev
+  end
+  node:remove()
+  self.count = self.count - 1
+end
+
 --- @param removeValue integer
 function Stack:removeInstancesOf(removeValue)
   local node = self.head
   local isHead = true
+  print('REMOVING VALUES - current array = ' .. vim.inspect(self:toArray()))
+  local i = 0
   while node ~= nil do
+    i = i + 1
     if node.val == removeValue then
-      self.count = self.count - 1
-      if node.prev ~= nil then
-        node.prev.next = node.next
-      end
-      if node.next ~= nil then
-        node.next.prev = node.prev
-      end
-
-      if isHead then
-        self.head = node.prev
+      print('REMOVING VALUE FROM NODE ' .. i .. ': ' .. node.val) 
+      if i == self.count then
+        self:removeTail()
       else
-        isHead = false
+        self:remove(node)
       end
     end
+    print('NEW ARRAY: ' .. vim.inspect(self:toArray()))
 
     node = node.prev
   end

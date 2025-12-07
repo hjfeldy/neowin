@@ -21,6 +21,7 @@ function M.deserialize(bufsMap)
       for i, bufName in ipairs(bufNames) do
         bufs[i] = bufNrs[bufName]
       end
+      util.debug('DESERIALIZING STACK FOR TAB ' .. tabNr)
       deserialized[tabNr] = Stack:new(999, bufs)
     end
   end
@@ -63,7 +64,7 @@ function M.updateLastBuf(tabNr, bufNr)
     return
   end
   local bufName = vim.api.nvim_buf_get_name(bufNr)
-  if bufName ~= nil then
+  if bufName ~= nil and bufName ~= "" and bufName ~= '[No Name]' then
     local origName = bufName
     bufName = bufName:match("([^\\]+)$") 
     if bufName == nil or bufName == "" then bufName = origName end
@@ -97,6 +98,10 @@ function M.smartDeleteBuffer(force, bufnr)
     return vim.notify('No recent buffers for this tab! This is a bug!', vim.log.levels.WARN)
   end
 
+  if vim.bo[0].modified and not force then
+    return vim.notify('Buffer has unwritten changes', vim.log.levels.WARN)
+  end
+
   if recentBufs.count == 1 and not force then
     return vim.notify('This is tab ' .. tab .. "'s last buffer!", vim.log.levels.WARN)
   end
@@ -104,6 +109,7 @@ function M.smartDeleteBuffer(force, bufnr)
   util.debug('POPPING FRONT')
   -- local front = recentBufs:popFront()
   recentBufs:removeInstancesOf(bufnr) -- remove duplicates - we can't cycle back to a buffer we just closed
+  util.debug('Current Items (after removal): ' .. vim.inspect(recentBufs:toArray()) .. ' (count = ' .. recentBufs.count .. ')')
   local lastBuf = M.getLastBuf(tab)
   util.debug('Last buf: ' .. (lastBuf or 'nil'))
   if lastBuf ~= nil then
