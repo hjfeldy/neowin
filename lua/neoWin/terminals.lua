@@ -126,9 +126,15 @@ function Terminals:attach(termIndex)
       vim.api.nvim_set_current_win(currWin)
     else
       vim.cmd('topleft split')
-      local lines = vim.o.lines
-      local toResize = .25 * lines
-      vim.cmd('resize ' .. toResize)
+
+      -- Schedule this, in case we want to call newTerm within window-related autocommand callbacks 
+      -- the resize gets overridden by default vim stuff that might be happening in relation to the autocommand
+      vim.schedule(function()
+        local lines = vim.o.lines
+        local toResize = .25 * lines
+        util.debug('Resizing terminal ' .. termIndex .. ' to size ' .. toResize)
+        vim.cmd('resize ' .. toResize)
+      end)
     end
 
     -- At this point you're residing in the window that should hold the new term
@@ -146,7 +152,7 @@ end
 function Terminals:toggle()
   self:refresh()
   if self.numTerms == 0 then
-    -- print('Creating new term (nothing to toggle on)')
+    util.debug('Creating new term (nothing to toggle on)')
     self:newTerm()
     self.toggled = true
     return
