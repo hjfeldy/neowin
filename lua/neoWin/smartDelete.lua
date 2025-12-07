@@ -66,7 +66,7 @@ function M.updateLastBuf(tabNr, bufNr)
   local bufName = vim.api.nvim_buf_get_name(bufNr)
   if bufName ~= nil and bufName ~= "" and bufName ~= '[No Name]' then
     local origName = bufName
-    bufName = bufName:match("([^\\]+)$") 
+    bufName = bufName:match("([^\\/]+)$") 
     if bufName == nil or bufName == "" then bufName = origName end
     util.debug('Pushing buf number ' .. bufNr .. ' (name=' .. (bufName or 'nil') .. ') to tab ' .. tabNr .. ' - current head value = ' .. (lastBuf.head and lastBuf.head.val or 'nil'))
     lastBuf:add(bufNr)
@@ -84,7 +84,10 @@ function M.getLastBuf(tabNr)
 end
 
 
-function M.smartDeleteBuffer(force, bufnr) 
+--- @param force boolean
+--- @param bufnr integer
+--- @param cycleWindowBuf boolean
+function M.smartDeleteBuffer(force, bufnr, cycleWindowBuf) 
   if vim.o.filetype == 'Terminal' then
     vim.notify('Do not close terminal buffers with bdelete - exit the terminal process explicitly', vim.log.levels.WARN)
     return
@@ -106,13 +109,13 @@ function M.smartDeleteBuffer(force, bufnr)
     return vim.notify('This is tab ' .. tab .. "'s last buffer!", vim.log.levels.WARN)
   end
 
-  util.debug('POPPING FRONT')
   -- local front = recentBufs:popFront()
   recentBufs:removeInstancesOf(bufnr) -- remove duplicates - we can't cycle back to a buffer we just closed
   util.debug('Current Items (after removal): ' .. vim.inspect(recentBufs:toArray()) .. ' (count = ' .. recentBufs.count .. ')')
+
   local lastBuf = M.getLastBuf(tab)
   util.debug('Last buf: ' .. (lastBuf or 'nil'))
-  if lastBuf ~= nil then
+  if lastBuf ~= nil and cycleWindowBuf then
     vim.api.nvim_win_set_buf(0, lastBuf)
   end
   vim.api.nvim_buf_delete(bufnr, {force=force})
@@ -123,7 +126,8 @@ end
 --- Cycle back to the most recently touched buffer
 --- @param force boolean?
 function M.smartDelete(force) 
-  return M.smartDeleteBuffer(force, vim.api.nvim_get_current_buf())
+  local currBuf = vim.api.nvim_get_current_buf()
+  return M.smartDeleteBuffer(force, currBuf, true)
 end
 
 --- Close the current window, but not if it is the last window in a tab 
