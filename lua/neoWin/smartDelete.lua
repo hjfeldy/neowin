@@ -98,7 +98,7 @@ function M.smartDeleteBuffer(force, bufnr)
     return vim.notify('No recent buffers for this tab! This is a bug!', vim.log.levels.WARN)
   end
 
-  if vim.bo[0].modified and not force then
+  if vim.bo[bufnr].modified and not force then
     return vim.notify('Buffer has unwritten changes', vim.log.levels.WARN)
   end
 
