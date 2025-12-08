@@ -1,4 +1,3 @@
-print('LOADING NEOWIN EXTENSION')
 local smartDelete = require('neoWin.smartDelete')
 --
 local M = {}

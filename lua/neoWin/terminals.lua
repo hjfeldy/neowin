@@ -54,13 +54,13 @@ end
 --- Create a new Terminal
 function Terminals:createTerm()
   self.numTerms = self.numTerms + 1
-  -- print('Set numTerms to ' .. self.numTerms)
+  -- util.debug('Set numTerms to ' .. self.numTerms)
   local newBuf = api.nvim_create_buf(false, false)
   local name = termName(self.numTerms)
   api.nvim_buf_call(newBuf, makeTerm)
   api.nvim_set_option_value('filetype', 'Terminal', {buf=newBuf})
   api.nvim_set_option_value('buflisted', false, {buf=newBuf})
-  -- print('Setting terminal buffer ' .. newBuf .. ' name to ' .. name)
+  -- util.debug('Setting terminal buffer ' .. newBuf .. ' name to ' .. name)
   api.nvim_buf_set_name(newBuf, name)
   local buf = {
     focused = true,
@@ -77,7 +77,7 @@ end
 
 ---Create and attach a new terminal window
 function Terminals:newTerm()
-  -- print('Creating terminal')
+  -- util.debug('Creating terminal')
     self:createTerm()
     self:attach(self.numTerms)
 end
@@ -165,7 +165,7 @@ function Terminals:toggle()
     for index, buf in pairs(self.bufs) do
       if buf.focused then
         found = true
-        -- print('Attaching terminal ' .. index)
+        -- util.debug('Attaching terminal ' .. index)
         self:attach(index)
       end
     end
@@ -333,7 +333,7 @@ local M = {}
 
 --- Create a Terminals API for a tab
 function M.registerTab(tabNum)
-  -- print('Registering tab ' .. tabNum)
+  -- util.debug('Registering tab ' .. tabNum)
   local newTerminalsApi = Terminals:new(tabNum)
   tabMap[tabNum] = newTerminalsApi
   return newTerminalsApi
@@ -349,7 +349,7 @@ local function getTerminalsApi()
     local tabNum = vim.api.nvim_get_current_tabpage()
     local terminals = tabMap[tabNum]
     if terminals == nil then
-      -- print('Registering terminals API for tab ' .. tabNum)
+      -- util.debug('Registering terminals API for tab ' .. tabNum)
       terminals = M.registerTab(tabNum)
     end
     return terminals

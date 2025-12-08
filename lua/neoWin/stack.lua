@@ -121,19 +121,19 @@ end
 function Stack:removeInstancesOf(removeValue)
   local node = self.head
   local isHead = true
-  print('REMOVING VALUES - current array = ' .. vim.inspect(self:toArray()))
+  util.debug('REMOVING VALUES - current array = ' .. vim.inspect(self:toArray()))
   local i = 0
   while node ~= nil do
     i = i + 1
     if node.val == removeValue then
-      print('REMOVING VALUE FROM NODE ' .. i .. ': ' .. node.val) 
+      util.debug('REMOVING VALUE FROM NODE ' .. i .. ': ' .. node.val) 
       if i == self.count then
         self:removeTail()
       else
         self:remove(node)
       end
     end
-    print('NEW ARRAY: ' .. vim.inspect(self:toArray()))
+    util.debug('NEW ARRAY: ' .. vim.inspect(self:toArray()))
 
     node = node.prev
   end
