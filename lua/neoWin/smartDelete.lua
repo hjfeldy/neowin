@@ -84,6 +84,21 @@ function M.getLastBuf(tabNr)
 end
 
 
+--- Force-reset the touched-buffer history for a tab
+--- @param tabNr integer?
+function M.resetLastBufs(tabNr)
+  tabNr = tabNr or vim.api.nvim_get_current_tabpage()
+  local bufs = {}
+  for _, buf in ipairs(vim.api.nvim_list_bufs()) do 
+    if not vim.bo[buf].bufhidden then
+      bufs[#bufs+1] = buf
+    end
+  end
+  M.LAST_BUFS[tabNr] = Stack:new(999, bufs)
+end
+
+
+
 --- @param force boolean
 --- @param bufnr integer
 --- @param cycleWindowBuf boolean
