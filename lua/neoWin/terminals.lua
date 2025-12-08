@@ -165,7 +165,7 @@ function Terminals:toggle()
     for index, buf in pairs(self.bufs) do
       if buf.focused then
         found = true
-        -- util.debug('Attaching terminal ' .. index)
+        util.debug('Attaching terminal ' .. index)
         self:attach(index)
       end
     end
@@ -198,7 +198,9 @@ function Terminals:delete(termIndex)
   local buf = self.bufs[termIndex]
   table.remove(self.bufs, termIndex)
   table.remove(self.bufsById, buf.bufNr)
-  local ok, _ = pcall(api.nvim_buf_delete(buf.bufNr, {force=true}))
+  if vim.list_contains(api.nvim_list_bufs(), buf.bufNr) then
+    local ok, _ = pcall(api.nvim_buf_delete(buf.bufNr, {force=true}))
+  end
 
   -- Rename remaining default-named terminals
   self:renameDefaults()
@@ -244,6 +246,9 @@ function Terminals:getWindowId(termIndex)
 
   local winId = winBufs[buf.bufNr]
   util.debug('Terminal #' .. termIndex .. ' Buffer=' .. buf.bufNr .. ', Window=' .. (winId or 'nil'))
+  -- if winId == nil then
+    -- print('No window for terminal ' .. termIndex .. ' (buffer ' .. buf.bufNr .. ')')
+  -- end
   return winId
 end
 

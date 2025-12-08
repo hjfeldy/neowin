@@ -73,7 +73,7 @@ M.LOCAL_WINDOW = true
 function M.smartCD(localWindow)
   local jumpList = localWindow and M.LOCAL_JUMP_LIST or M.JUMP_LIST
   local dirname = vim.fs.dirname(vim.api.nvim_buf_get_name(0))
-  local cmd = localWindow and 'lcd' or 'ycd'
+  local cmd = localWindow and 'lcd' or 'tcd'
   if jumpList.current.val == nil then
     jumpList.current.val = vim.fn.getcwd()
     util.debug('SET ROOT VALUE to ' .. jumpList.current.val)

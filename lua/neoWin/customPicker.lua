@@ -46,7 +46,9 @@ end
 local function detachPreviewer(prompt_bufnr)
   local picker = action_state.get_current_picker(prompt_bufnr)
   local scratchBuf = api.nvim_create_buf(false, true)
-  api.nvim_win_set_buf(picker.preview_win, scratchBuf)
+  if(picker.preview_win ~= nil) then
+    api.nvim_win_set_buf(picker.preview_win, scratchBuf)
+  end
 end
 
 
@@ -63,6 +65,7 @@ local function selectTerminal(prompt_bufnr)
     terminals.refresh()
   end
   terminals.attach(entry.value.index)
+  terminals.setFocus()
 end
 
 
@@ -99,6 +102,10 @@ local function renameTerminal(prompt_bufnr)
   picker:refresh(getFinder())
 end
 
+function M.closePicker(prompt_bufnr)
+  detachPreviewer(prompt_bufnr)
+  actions.close(prompt_bufnr)
+end
 
 function M.termPick(opts)
   terminals.refresh()
@@ -113,6 +120,9 @@ function M.termPick(opts)
       map("n", "n", attachInPlace)
       map("n", "dd", deleteTerminal)
       map("n", "r", renameTerminal)
+      map("n", "<Esc>", M.closePicker)
+      map("n", "<C-c>", M.closePicker)
+      map("i", "<C-c>", M.closePicker)
       return true
     end,
     previewer = previewers.new({
