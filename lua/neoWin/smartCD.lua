@@ -30,6 +30,7 @@ end
 --- When adding a new item, the current selection becomes the new head,
 --- and any of its old children are discarded. 
 --- This allows us to implement a rudimentary jumplist 
+--- @class TraversableLinkedList
 local TraversableLinkedList = {}
 function TraversableLinkedList:new() 
   local root = Node:new()
@@ -59,21 +60,62 @@ function TraversableLinkedList:traverse(forwards)
   return self.current.val
 end
 
+-- local JumpList = {}
+-- --- @ class JumpList
+-- function JumpList:new(localCD) 
+--   local inst = {list=TraversableLinkedList:new(), localCD=localCD}
+--   setmetatable(inst, self)
+--   self.__index = self
+--   return inst
+-- end
+
 --- change-directory jumplist
-M.JUMP_LIST = TraversableLinkedList:new()
+--- @type { [integer]: TraversableLinkedList }
+M.JUMP_LISTS = {}
 --- local-window change-directory jumplist
-M.LOCAL_JUMP_LIST = TraversableLinkedList:new()
---- Was the most recent explicit directory change a local-window change?
-M.LOCAL_WINDOW = true
+--- @type { [integer]: TraversableLinkedList }
+M.JUMP_LISTS = {}
+--- local-window change-directory jumplist
+--- @type { [integer]: TraversableLinkedList }
+M.LOCAL_JUMP_LISTS = {}
+
+
+--- @param localCD boolean
+--- @param winOrTab integer?
+local function getJumpList(localCD, winOrTab) 
+  local jumpList
+  local jumpListContainer
+  if localCD then
+    winOrTab = winOrTab or vim.api.nvim_get_current_win()
+    jumpListContainer = M.LOCAL_JUMP_LISTS
+    print('using window-scoped jump lists')
+  else
+    winOrTab = winOrTab or vim.api.nvim_get_current_tabpage()
+    jumpListContainer = M.JUMP_LISTS
+    print('using tab-scoped jump lists')
+  end
+
+  if jumpListContainer[winOrTab] ~= nil then
+    print('jump list exists for win/tab ' .. winOrTab)
+    jumpList = jumpListContainer[winOrTab]
+  else
+    print('jump list is null for win/tab ' .. winOrTab)
+    jumpList = TraversableLinkedList:new()
+    jumpListContainer[winOrTab] = jumpList
+  end
+  return jumpList;
+end
 
 --- Change directory to the current buffer's base directory
 --- Record the change in the relevant jumplist
---- @param localWindow boolean use the command "lcd" instead of "cd"
+--- @param localCD boolean use the command "lcd" instead of "cd"
 --- @return nil
-function M.smartCD(localWindow)
-  local jumpList = localWindow and M.LOCAL_JUMP_LIST or M.JUMP_LIST
+function M.smartCD(localCD)
+
+  local jumpList = getJumpList(localCD)
+
   local dirname = vim.fs.dirname(vim.api.nvim_buf_get_name(0))
-  local cmd = localWindow and 'lcd' or 'tcd'
+  local cmd = localCD and 'lcd' or 'tcd'
   if jumpList.current.val == nil then
     jumpList.current.val = vim.fn.getcwd()
     util.debug('SET ROOT VALUE to ' .. jumpList.current.val)
@@ -81,27 +123,32 @@ function M.smartCD(localWindow)
   jumpList:addVal(dirname)
 
   vim.cmd(cmd .. ' ' .. dirname)
-  M.LOCAL_WINDOW = localWindow
 end
 
 --- Change directory to the previous element in the cd jumplist
+--- @param localCD boolean
 --- @return nil
-function M.jumpBack()
-  local jumpList = M.LOCAL_WINDOW and M.LOCAL_JUMP_LIST or M.JUMP_LIST
+function M.jumpBack(localCD)
+  local jumpList = getJumpList(localCD)
   local lastDir = jumpList:traverse(false)
-  util.debug('LAST DIR: ' .. lastDir)
-  local cmd = M.LOCAL_WINDOW and 'lcd' or 'tcd'
-  vim.cmd(cmd .. ' ' .. lastDir)
+  util.debug('LAST DIR: ' .. (lastDir or 'nil'))
+  local cmd = localCD and 'lcd' or 'tcd'
+  if lastDir ~= nil then
+    vim.cmd(cmd .. ' ' .. lastDir)
+  end
 end
 
 --- Change directory to the next element in the cd jumplist
+--- @param localCD boolean
 --- @return nil
-function M.jumpForwards()
-  local jumpList = M.LOCAL_WINDOW and M.LOCAL_JUMP_LIST or M.JUMP_LIST
+function M.jumpForwards(localCD)
+  local jumpList = getJumpList(localCD)
   local nextDir = jumpList:traverse(true)
-  util.debug('NEXT DIR: ' .. nextDir)
-  local cmd = M.LOCAL_WINDOW and 'lcd' or 'tcd'
-  vim.cmd(cmd .. ' ' .. nextDir)
+  util.debug('NEXT DIR: ' .. (nextDir or 'nil'))
+  local cmd = localCD and 'lcd' or 'tcd'
+  if nextDir ~= nil then
+    vim.cmd(cmd .. ' ' .. nextDir)
+  end
 end
 
 return M
