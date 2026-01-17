@@ -50,23 +50,22 @@ api.nvim_create_autocmd('TermClose', {
 })
 -- end
 
--- for _, eventName in pairs({'BufEnter', 'WinEnter'}) do
--- for _, eventName in pairs({'WinEnter', 'BufWinEnter'}) do
---   api.nvim_create_autocmd(eventName,
---     {
---       pattern = {'*'},
---       callback = function(event)
---         util.debug('Caught ' .. eventName .. ' event for buf ' .. event.buf)
---         local tab = api.nvim_tabpage_get_number(0)
---         local ft = vim.bo[0].filetype
---         local blacklist = {'qf', 'Terminal', 'noice', 'Noice'}
---         if not vim.tbl_contains(blacklist, ft) then
---           smartDelete.updateLastBuf(tab, event.buf)
---         end
---       end
---     }
---   )
--- end
+for _, eventName in pairs({'BufEnter', 'WinEnter'}) do
+  api.nvim_create_autocmd(eventName,
+    {
+      pattern = {'*'},
+      callback = function(event)
+        util.debug('Caught ' .. eventName .. ' event for buf ' .. event.buf)
+        local tab = api.nvim_tabpage_get_number(0)
+        local ft = vim.bo[0].filetype
+        local blacklist = {'qf', 'Terminal', 'noice', 'Noice'}
+        if not vim.tbl_contains(blacklist, ft) then
+          smartDelete.updateLastBuf(tab, event.buf)
+        end
+      end
+    }
+  )
+end
 
 --[[ User commands ]]
 api.nvim_create_user_command('RenameTerm', function() terminals.renameTerm() end, {})
