@@ -145,6 +145,12 @@ function Terminals:attach(termIndex)
     self.recent = termIndex
     -- scroll to bottom of terminal 
     vim.cmd('goto 99999999')
+
+    local termHL = vim.api.nvim_get_hl(0, {name='Terminal'})
+    if not vim.tbl_isempty(termHL) then
+      vim.wo[0].winhighlight = 'Normal:Terminal'
+    end
+
 end
 
 
