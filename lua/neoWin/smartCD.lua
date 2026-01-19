@@ -1,4 +1,5 @@
 local util = require('util')
+local LOGGER = require('neoWin.logger'):new('smartCD')
 
 local M = {}
 
@@ -83,23 +84,24 @@ M.LOCAL_JUMP_LISTS = {}
 --- @param localCD boolean
 --- @param winOrTab integer?
 local function getJumpList(localCD, winOrTab) 
+  local logger = LOGGER:withAttrs({logMethod="getJumpList"});
   local jumpList
   local jumpListContainer
   if localCD then
     winOrTab = winOrTab or vim.api.nvim_get_current_win()
     jumpListContainer = M.LOCAL_JUMP_LISTS
-    print('using window-scoped jump lists')
+    logger:debug('using window-scoped jump lists')
   else
     winOrTab = winOrTab or vim.api.nvim_get_current_tabpage()
     jumpListContainer = M.JUMP_LISTS
-    print('using tab-scoped jump lists')
+    logger:debug('using tab-scoped jump lists')
   end
 
   if jumpListContainer[winOrTab] ~= nil then
-    print('jump list exists for win/tab ' .. winOrTab)
+    logger:debug('jump list exists for win/tab ' .. winOrTab)
     jumpList = jumpListContainer[winOrTab]
   else
-    print('jump list is null for win/tab ' .. winOrTab)
+    logger:debug('jump list is null for win/tab ' .. winOrTab)
     jumpList = TraversableLinkedList:new()
     jumpListContainer[winOrTab] = jumpList
   end
@@ -111,14 +113,14 @@ end
 --- @param localCD boolean use the command "lcd" instead of "cd"
 --- @return nil
 function M.smartCD(localCD)
-
+  local logger = LOGGER:withAttrs({logMethod="smartCD"})
   local jumpList = getJumpList(localCD)
 
   local dirname = vim.fs.dirname(vim.api.nvim_buf_get_name(0))
   local cmd = localCD and 'lcd' or 'tcd'
   if jumpList.current.val == nil then
     jumpList.current.val = vim.fn.getcwd()
-    util.debug('SET ROOT VALUE to ' .. jumpList.current.val)
+    logger:debug('SET ROOT VALUE to ' .. jumpList.current.val)
   end
   jumpList:addVal(dirname)
 
@@ -129,9 +131,10 @@ end
 --- @param localCD boolean
 --- @return nil
 function M.jumpBack(localCD)
+  local logger = LOGGER:withAttrs({logMethod="jumpBack"});
   local jumpList = getJumpList(localCD)
   local lastDir = jumpList:traverse(false)
-  util.debug('LAST DIR: ' .. (lastDir or 'nil'))
+  logger:debug('LAST DIR: ' .. (lastDir or 'nil'))
   local cmd = localCD and 'lcd' or 'tcd'
   if lastDir ~= nil then
     vim.cmd(cmd .. ' ' .. lastDir)
@@ -142,9 +145,10 @@ end
 --- @param localCD boolean
 --- @return nil
 function M.jumpForwards(localCD)
+  local logger = LOGGER:withAttrs({logMethod="jumpForwards"});
   local jumpList = getJumpList(localCD)
   local nextDir = jumpList:traverse(true)
-  util.debug('NEXT DIR: ' .. (nextDir or 'nil'))
+  logger:debug('NEXT DIR: ' .. (nextDir or 'nil'))
   local cmd = localCD and 'lcd' or 'tcd'
   if nextDir ~= nil then
     vim.cmd(cmd .. ' ' .. nextDir)

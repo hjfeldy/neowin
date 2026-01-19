@@ -55,18 +55,17 @@ function Terminals:new(tabNum)
 end
 
 function Terminals:nextTermIndex()
+  local logger = self.logger:withAttrs({logMethod="nextTermIndex"});
   local termIndex = 0
   for i, buf in ipairs(self.bufs) do 
     termIndex = i
     if buf.index > termIndex then
-      -- print('Found gap at terminal index ' .. buf.index)
+      logger:debug('Found gap at terminal index ' .. buf.index)
       return termIndex
-      -- return 'Terminal ' .. termIndex
     end
   end
-  -- print('No gaps - setting termIndex ' .. (termIndex+1))
+  logger:debug('No gaps - setting termIndex ' .. (termIndex+1))
   return termIndex+1
-  -- return 'Terminal ' .. (termIndex+1)
 end
 
 
@@ -75,7 +74,7 @@ function Terminals:createTerm()
   local logger = self.logger:withAttrs({logMethod="createTerm"})
   self:refresh()
   self.numTerms = self.numTerms + 1
-  -- logger:debug('Set numTerms to ' .. self.numTerms)
+  logger:debug('Set numTerms to ' .. self.numTerms)
 
   local newBuf = api.nvim_create_buf(false, false)
   local nextIndex = self:nextTermIndex()
@@ -85,7 +84,7 @@ function Terminals:createTerm()
   api.nvim_buf_call(newBuf, makeTerm)
   api.nvim_set_option_value('filetype', 'Terminal', {buf=newBuf})
   api.nvim_set_option_value('buflisted', false, {buf=newBuf})
-  -- self.logger:debug('Setting terminal buffer ' .. newBuf .. ' name to ' .. name)
+  self.logger:debug('Setting terminal buffer ' .. newBuf .. ' name to ' .. name)
   api.nvim_buf_set_name(newBuf, fullName)
   local buf = {
     focused = true,
@@ -296,9 +295,9 @@ function Terminals:getWindowId(termIndex)
 
   local winId = winBufs[buf.bufNr]
   logger:debug('Terminal #' .. termIndex .. ' Buffer=' .. buf.bufNr .. ', Window=' .. (winId or 'nil'))
-  -- if winId == nil then
-    -- print('No window for terminal ' .. termIndex .. ' (buffer ' .. buf.bufNr .. ')')
-  -- end
+  if winId == nil then
+    logger:debug('No window for terminal ' .. termIndex .. ' (buffer ' .. buf.bufNr .. ')')
+  end
   return winId
 end
 

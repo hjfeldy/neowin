@@ -56,10 +56,11 @@ end
 
 
 function M.removeUnloaded()
+  local logger = LOGGER:withAttrs({logMethod="removeUnloaded"});
   for _, buf in ipairs(vim.api.nvim_list_bufs()) do
     if not vim.api.nvim_buf_is_loaded(buf) then
       local bufName = vim.api.nvim_buf_get_name(buf)
-      print('Found unloaded buffer ' .. buf .. ' ("' .. bufName .. ')" - deleting it')
+      logger:debug('Found unloaded buffer ' .. buf .. ' ("' .. bufName .. ')" - deleting it')
       vim.api.nvim_buf_delete(buf, {force=true})
     end
   end
@@ -198,19 +199,19 @@ function M.smartDeleteBuffer(force, bufnr, cycleWindowBuf, unlist)
   for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
     local winBuf = vim.api.nvim_win_get_buf(win)
     if cycleWindowBuf and winBuf == bufnr then
-      print("Found window attached to buffer that we're deleting: " .. win)
+      logger:debug("Found window attached to buffer that we're deleting: " .. win)
       if lastBuf ~= nil then
-        print('Setting window ' .. win .. ' buffer to ' .. lastBuf)
+        logger:debug('Setting window ' .. win .. ' buffer to ' .. lastBuf)
       vim.api.nvim_win_set_buf(win, lastBuf)
       end
     end
   end
 
   if unlist then
-    print('Unlisting buffer ' .. bufnr)
+    logger:debug('Unlisting buffer ' .. bufnr)
     vim.bo[bufnr].buflisted = false
   else
-    print('Deleting buffer ' .. bufnr)
+    logger:debug('Deleting buffer ' .. bufnr)
     vim.api.nvim_buf_delete(bufnr, {force=force})
   end
 end
