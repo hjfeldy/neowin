@@ -76,4 +76,15 @@ function M.getBufsByName()
   return nameMap
 end
 
+function M.dotEnv()
+  local env = {}
+  local dotEnvPath = vim.uv.cwd() .. '/.env'
+  for ln in io.lines(dotEnvPath) do
+    local split = vim.split(ln, '=')
+    local key, val = split[1], split[2]
+    env[key] = val
+  end
+  return env
+end
+
 return M

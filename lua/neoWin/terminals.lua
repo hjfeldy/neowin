@@ -5,7 +5,7 @@ local Logger = require('neoWin.logger')
 
 local pathSep = package.config:sub(1,1)
 local isWindows = pathSep == '\\'
-local shell = isWindows and 'powershell' or os.getenv('SHELL')
+local shell = isWindows and 'powershell' or os.getenv('SHELL') or "bash"
 
 
 local function termName(termIndex)
@@ -40,15 +40,16 @@ local Terminals = {
 
 --- Open a terminal buffer in the current window
 local function makeTerm()
-  -- local logger Logger:new('Terminals'):withAttrs({logMethod="makeTerm"})
-  vim.cmd('e term://' .. shell)
+  local logger = Logger:new('Terminals'):withAttrs({logMethod="makeTerm"})
+  -- vim.cmd('e term://' .. shell)
+  local chanId = vim.fn.jobstart(shell, {
+    term=true,
+    pty=true,
+    env=util.dotEnv()
+  })
   local name = vim.api.nvim_buf_get_name(0)
-  print('Default name: ' .. name)
-  -- term://~/.config/nvim//448610:/usr/bin/zsh
-  local innerSection = vim.split(name, ':')[2]
-  local dirPieces = vim.split(innerSection, '/')
-  local pid = dirPieces[#dirPieces]
-  return pid
+  logger:debug('Default name: ' .. name)
+  return chanId
 end
 
 
@@ -94,14 +95,14 @@ function Terminals:createTerm()
   logger:debug('Creating terminal #' .. nextIndex)
   local name = 'Terminal ' .. nextIndex
   local fullName = "(" .. util.getTabName(self.tabNum) .. ") " .. name
-  local pid = api.nvim_buf_call(newBuf, makeTerm)
+  local chanId = api.nvim_buf_call(newBuf, makeTerm)
 
   api.nvim_set_option_value('filetype', 'Terminal', {buf=newBuf})
   api.nvim_set_option_value('buflisted', false, {buf=newBuf})
   self.logger:debug('Setting terminal buffer ' .. newBuf .. ' name to ' .. name)
   api.nvim_buf_set_name(newBuf, fullName)
   local buf = {
-    pid = pid,
+    -- pid = pid,
     focused = true,
     name = fullName,
     bufNr = newBuf,
@@ -112,7 +113,7 @@ function Terminals:createTerm()
   self.bufsById[buf.bufNr] = buf
   logger:debug('Created terminal ' .. self.numTerms .. ' for buffer ' .. buf.bufNr)
   self:refresh()
-  self:sendKeys(nextIndex, '. ./.env<CR>')
+  -- self:sendKeys(nextIndex, '. ./.env')
 end
 
 ---@param termIndex integer
