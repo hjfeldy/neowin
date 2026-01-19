@@ -1,5 +1,6 @@
 
 local util = require('util')
+local Logger = require('neoWin.logger')
 
 
 --- @class StackNode 
@@ -29,6 +30,8 @@ function StackNode:add(val)
   return newNode
 end
 
+
+
 function StackNode:remove()
   if self.prev ~= nil then
     self.prev.next = self.next
@@ -44,18 +47,21 @@ end
 --- @field tail StackNode
 --- @field count integer
 --- @field maxLen integer
-local Stack = {}
+local Stack = {
+  logger = Logger:new("Stack")
+}
 
 --- New Stack
 --- Optionally pass an array of primitives to initialize
 --- @param maxLen integer?
 --- @param existingItems integer[]?
 function Stack:new(maxLen, existingItems)
+  local logger = self.logger:withAttrs({logMethod="new"})
   existingItems = existingItems or {}
   maxLen = maxLen or 999
 
   local inst = {head=nil, tail=nil, count=0, maxLen=maxLen}
-  util.debug('CREATED NODE WITH COUNT ' .. inst.count)
+  logger:debug('CREATED NODE WITH COUNT ' .. inst.count)
   setmetatable(inst, self)
   self.__index = self
 
@@ -79,16 +85,17 @@ end
 
 --- @param val integer
 function Stack:add(val)
+  local logger = self.logger:withAttrs({logMethod="add"})
   if self.head == nil then 
-    util.debug('Creating first node with val ' .. val)
+    logger:debug('Creating first node with val ' .. val)
     local firstNode = StackNode:new(val)
     self.tail = firstNode
     self.head = firstNode
-    util.debug('First-Head value: ' .. self.head.val)
+    logger:debug('First-Head value: ' .. self.head.val)
   else
-    util.debug('Adding new node with val ' .. val)
+    logger:debug('Adding new node with val ' .. val)
     self.head = self.head:add(val)
-    util.debug('New-Head value: ' .. self.head.val)
+    logger:debug('New-Head value: ' .. self.head.val)
   end
   self.count = self.count + 1
 
@@ -119,21 +126,22 @@ end
 
 --- @param removeValue integer
 function Stack:removeInstancesOf(removeValue)
+  local logger = self.logger:withAttrs({logMethod="removeInstancesOf"})
   local node = self.head
   local isHead = true
-  util.debug('REMOVING VALUES - current array = ' .. vim.inspect(self:toArray()))
+  logger:debug('REMOVING VALUES - current array = ' .. vim.inspect(self:toArray()))
   local i = 0
   while node ~= nil do
     i = i + 1
     if node.val == removeValue then
-      util.debug('REMOVING VALUE FROM NODE ' .. i .. ': ' .. node.val) 
+      logger:debug('REMOVING VALUE FROM NODE ' .. i .. ': ' .. node.val) 
       if i == self.count then
         self:removeTail()
       else
         self:remove(node)
       end
     end
-    util.debug('NEW ARRAY: ' .. vim.inspect(self:toArray()))
+    logger:debug('NEW ARRAY: ' .. vim.inspect(self:toArray()))
 
     node = node.prev
   end
@@ -147,6 +155,21 @@ function Stack:toArray()
     node = node.prev
   end
   return arr
+end
+
+--- @param val integer
+function Stack:addToEnd(val)
+  if self.tail == nil then
+    self:add(val)
+    return self.tail
+  end
+
+  local endNode = self.tail
+  self.tail = StackNode:new(val)
+  endNode.prev = self.tail
+  self.tail.next = endNode
+  self.count = self.count + 1
+  return self.tail
 end
 
 return Stack

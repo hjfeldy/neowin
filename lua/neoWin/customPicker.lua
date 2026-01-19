@@ -18,7 +18,8 @@ local function getFinder(localTab)
     results = terminals.getTerminalBufs(localTab),
     entry_maker = function(entry)
       local prefix = "(" .. util.getTabName(entry.tabNum) .. ")"
-      local fullName = prefix .. " " .. entry.name
+      local alreadyPrefixed = entry.name:sub(1, prefix:len()) == prefix
+      local fullName = alreadyPrefixed and entry.name or (prefix .. " " .. entry.name)
       return {
         value = entry,
         display = localTab and entry.name or fullName,

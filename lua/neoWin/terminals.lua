@@ -1,6 +1,7 @@
 local util = require('neoWin.util')
 local winSizing = require('neoWin.winSizing')
 local api = vim.api
+local Logger = require('neoWin.logger')
 
 local pathSep = package.config:sub(1,1)
 local isWindows = pathSep == '\\'
@@ -35,7 +36,9 @@ end
 ---@field bufsById table<integer, TermBuffer> Map of terminal buffers by their ID
 ---@field toggled boolean Is the terminal pane toggled?
 ---@field tabNum integer Tab to which this terminal API belongs
-local Terminals = {}
+local Terminals = {
+  logger = Logger:new("Terminals")
+}
 
 function Terminals:new(tabNum)
   local instance = {
@@ -51,44 +54,81 @@ function Terminals:new(tabNum)
   return instance
 end
 
+function Terminals:nextTermIndex()
+  local termIndex = 0
+  for i, buf in ipairs(self.bufs) do 
+    termIndex = i
+    if buf.index > termIndex then
+      -- print('Found gap at terminal index ' .. buf.index)
+      return termIndex
+      -- return 'Terminal ' .. termIndex
+    end
+  end
+  -- print('No gaps - setting termIndex ' .. (termIndex+1))
+  return termIndex+1
+  -- return 'Terminal ' .. (termIndex+1)
+end
+
+
 --- Create a new Terminal
 function Terminals:createTerm()
+  local logger = self.logger:withAttrs({logMethod="createTerm"})
+  self:refresh()
   self.numTerms = self.numTerms + 1
-  -- util.debug('Set numTerms to ' .. self.numTerms)
+  -- logger:debug('Set numTerms to ' .. self.numTerms)
+
   local newBuf = api.nvim_create_buf(false, false)
-  local name = termName(self.numTerms)
+  local nextIndex = self:nextTermIndex()
+  logger:debug('Creating terminal #' .. nextIndex)
+  local name = 'Terminal ' .. nextIndex
+  local fullName = "(" .. util.getTabName(self.tabNum) .. ") " .. name
   api.nvim_buf_call(newBuf, makeTerm)
   api.nvim_set_option_value('filetype', 'Terminal', {buf=newBuf})
   api.nvim_set_option_value('buflisted', false, {buf=newBuf})
-  -- util.debug('Setting terminal buffer ' .. newBuf .. ' name to ' .. name)
-  api.nvim_buf_set_name(newBuf, name)
+  -- self.logger:debug('Setting terminal buffer ' .. newBuf .. ' name to ' .. name)
+  api.nvim_buf_set_name(newBuf, fullName)
   local buf = {
     focused = true,
-    name = name,
+    name = fullName,
     bufNr = newBuf,
-    index = self.numTerms,
+    index = nextIndex,
     tabNum = self.tabNum
   }
   self.bufs[self.numTerms] = buf
   self.bufsById[buf.bufNr] = buf
-  util.debug('Created terminal ' .. self.numTerms .. ' for buffer ' .. buf.bufNr)
+  logger:debug('Created terminal ' .. self.numTerms .. ' for buffer ' .. buf.bufNr)
+  self:refresh()
 end
 
 
 ---Create and attach a new terminal window
 function Terminals:newTerm()
-  -- util.debug('Creating terminal')
-    self:createTerm()
-    self:attach(self.numTerms)
+  local logger = self.logger:withAttrs({logMethod='newTerm'})
+  self:refresh()
+  logger:debug('Creating terminal')
+  local nextIndex = self:nextTermIndex()
+  self:createTerm()
+  self:attach(nextIndex)
 end
 
 
 --- Rename a terminal buffer
 function Terminals:renameTerm(termIndex)
-    termIndex = termIndex or self.recent
-    local newName = vim.fn.input('New name for ' .. self.bufs[termIndex].name .. ': ')
-    api.nvim_buf_set_name(self.bufs[termIndex].bufNr, newName)
-    self.bufs[termIndex].name = newName
+  if termIndex == nil then 
+    local currBuf = vim.api.nvim_get_current_buf()
+    local buf = self.bufsById[currBuf]
+    if buf == nil then
+      vim.notify('Unable to find terminal for buffer ' .. currBuf, vim.log.levels.ERROR)
+      return
+    end
+    termIndex = buf.index
+  end
+  termIndex = termIndex or self.recent
+  local newName = vim.fn.input('New name for ' .. self.bufs[termIndex].name .. ': ')
+  local prefix = "(" .. util.getTabName(self.tabNum) .. ")"
+  local fullName = prefix .. ' ' .. newName
+  api.nvim_buf_set_name(self.bufs[termIndex].bufNr, fullName)
+  self.bufs[termIndex].name = fullName
 end
 
 
@@ -101,7 +141,8 @@ end
 --- Attach a terminal buffer to the terminal pane
 --- (add a new window containing the terminal buffer)
 function Terminals:attach(termIndex)
-    util.debug('Attaching terminal ' .. (vim.inspect(termIndex) or 'nil'))
+    local logger = self.logger:withAttrs({logMethod='attach'})
+    logger:debug('Attaching terminal ' .. (vim.inspect(termIndex) or 'nil'))
     self.toggled = true
     termIndex = termIndex or self.recent
     local buf = self.bufs[termIndex]
@@ -109,7 +150,7 @@ function Terminals:attach(termIndex)
     -- If the terminal is attached already, just focus it
     local winBuf = self:getWindowId(termIndex)
     if winBuf ~= nil then
-      util.debug('Terminal #' .. termIndex .. ' is already attached to window ' .. winBuf .. '- focusing the window...') 
+      logger:debug('Terminal #' .. termIndex .. ' is already attached to window ' .. winBuf .. '- focusing the window...') 
       buf.focused = true 
       api.nvim_set_current_win(winBuf)
       return
@@ -118,12 +159,11 @@ function Terminals:attach(termIndex)
     -- If we have *another* terminal window focused already,
     -- then vsplit with that terminal window before focusing the existing term.
     -- Otherwise, hsplit a new terminal to the top.
-    local visibleTermWin = self:firstWindowId() 
+    local visibleTermWin = self:lastWindowId() 
     if visibleTermWin ~= nil then
-      local currWin = api.nvim_get_current_win()
       api.nvim_set_current_win(visibleTermWin)
       vim.cmd('vsplit')
-      vim.api.nvim_set_current_win(currWin)
+      vim.cmd('wincmd l')
     else
       vim.cmd('topleft split')
 
@@ -132,7 +172,7 @@ function Terminals:attach(termIndex)
       vim.schedule(function()
         local lines = vim.o.lines
         local toResize = .25 * lines
-        util.debug('Resizing terminal ' .. termIndex .. ' to size ' .. toResize)
+        logger:debug('Resizing terminal ' .. termIndex .. ' to size ' .. toResize)
         vim.cmd('resize ' .. toResize)
       end)
     end
@@ -140,7 +180,8 @@ function Terminals:attach(termIndex)
     -- At this point you're residing in the window that should hold the new term
     -- So we just assign the terminal buffer to window-0
     buf.focused = true
-    util.debug('Setting current-window buffer to ' .. buf.bufNr)
+    logger:debug('Setting current-window buffer to ' .. buf.bufNr)
+    local currWin = vim.api.nvim_get_current_win()
     api.nvim_win_set_buf(0, buf.bufNr)
     self.recent = termIndex
     -- scroll to bottom of terminal 
@@ -156,9 +197,10 @@ end
 
 --- Toggle the terminal pane at the top of the buffer
 function Terminals:toggle()
+  local logger = self.logger:withAttrs({logMethod="toggle"})
   self:refresh()
   if self.numTerms == 0 then
-    util.debug('Creating new term (nothing to toggle on)')
+    logger:debug('Creating new term (nothing to toggle on)')
     self:newTerm()
     self.toggled = true
     return
@@ -171,7 +213,7 @@ function Terminals:toggle()
     for index, buf in pairs(self.bufs) do
       if buf.focused then
         found = true
-        util.debug('Attaching terminal ' .. index)
+        logger:debug('Attaching terminal ' .. index)
         self:attach(index)
       end
     end
@@ -194,20 +236,18 @@ function Terminals:toggle()
 end
 
 
---- Delete the local record of a terminal buffer (specified by its index)
---- Defalt to the most recently open terminal
---- @param termIndex integer
-function Terminals:delete(termIndex)
-  util.debug('Deleting terminal ' .. termIndex)
+function Terminals:deleteMissing()
+  local openBufs = util.openBufs()
   termIndex = termIndex or self.recent
-  self.numTerms = self.numTerms - 1
-  local buf = self.bufs[termIndex]
-  table.remove(self.bufs, termIndex)
-  table.remove(self.bufsById, buf.bufNr)
-  if vim.list_contains(api.nvim_list_bufs(), buf.bufNr) then
-    local ok, _ = pcall(api.nvim_buf_delete(buf.bufNr, {force=true}))
+  local offset = 0
+  for termIndex, buf in ipairs(self.bufs) do
+    if openBufs[buf.bufNr] == nil then
+      table.remove(self.bufs, termIndex-offset)
+      table.remove(self.bufsById, buf.bufNr)
+      offset = offset+1
+      self.numTerms = self.numTerms - 1
+    end
   end
-
   -- Rename remaining default-named terminals
   self:renameDefaults()
 end
@@ -216,6 +256,10 @@ end
 --- Cycle the current window's terminal buffer
 --- @param plus boolean true for right, false for left
 function Terminals:cycleTerm(plus)
+  local logger = self.logger:withAttrs({logMethod="cycleTerm"})
+  local direction = plus and "forwards" or "backwards"
+  logger:debug('Cycling terminal ' .. direction)
+
   if self.numTerms == 0 then return end
   local thisBuf = api.nvim_get_current_buf()
   local bufIndex = self.bufsById[thisBuf].index
@@ -223,7 +267,6 @@ function Terminals:cycleTerm(plus)
   local wrapAround = plus and 1 or #self.bufs
   local nextBuf = self.bufs[bufIndex+offset] or self.bufs[wrapAround]
   api.nvim_win_set_buf(0, nextBuf.bufNr)
-  util.debug('Setting current (cycleTerm())')
   self:refresh()
 end
 
@@ -243,15 +286,16 @@ end
 --- Check if a terminal at index {termIndex} is currently in view
 --- if it is, return its window ID 
 function Terminals:getWindowId(termIndex)
-  util.debug('Getting window ID for terminal # ' .. termIndex)
+  local logger = self.logger:withAttrs({logMethod="getWindowId"})
+  logger:debug('Getting window ID for terminal # ' .. termIndex)
   local buf = self.bufs[termIndex]
   if buf == nil then return nil end
 
-  util.debug('Terminal Buf:', buf)
+  logger:debug('Terminal Buf:', buf)
   local winBufs = util.windowBufs()
 
   local winId = winBufs[buf.bufNr]
-  util.debug('Terminal #' .. termIndex .. ' Buffer=' .. buf.bufNr .. ', Window=' .. (winId or 'nil'))
+  logger:debug('Terminal #' .. termIndex .. ' Buffer=' .. buf.bufNr .. ', Window=' .. (winId or 'nil'))
   -- if winId == nil then
     -- print('No window for terminal ' .. termIndex .. ' (buffer ' .. buf.bufNr .. ')')
   -- end
@@ -268,27 +312,35 @@ function Terminals:firstWindowId()
   end
 end
 
+function Terminals:lastWindowId()
+  for i = self.numTerms,1,-1 do
+    local win = self:getWindowId(i)
+    if win ~= nil then return win end
+  end
+end
+
 
 --- Refresher function to track the terminal which most recently held the cursor
 function Terminals:setRecent()
+  local logger = self.logger:withAttrs({logMethod="setRecent"})
   local thisBuf = api.nvim_get_current_buf()
 
   if self.bufsById[thisBuf] ~= nil then
     self.recent = self.bufsById[thisBuf].index
-    util.debug('Set recent terminal-buffer index to ' .. self.recent)
+    logger:debug('Set recent terminal-buffer index to ' .. self.recent)
   end
 end
 
 
 --- Refresher function to track the state of the terminals and perform periodic cleanup
-function Terminals:cleanup()
-  local openBufs = util.openBufs()
-  for index, buf in pairs(self.bufs) do
-    if openBufs[buf.bufNr] == nil then
-      self:delete(index)
-    end
-  end
-end
+-- function Terminals:cleanup()
+--   local openBufs = util.openBufs()
+--   for index, buf in pairs(self.bufs) do
+--     if openBufs[buf.bufNr] == nil then
+--       self:delete(index)
+--     end
+--   end
+-- end
 
 
 --- Refresher function to track the focus of the terminals
@@ -318,10 +370,11 @@ end
 ---Prefix with the tab index / name
 function Terminals:renameDefaults()
   local namePat = '^Terminal %d+$'
+  local openBufs = util.openBufs()
   for index, buf in pairs(self.bufs) do
     if string.match(buf.name, namePat) then
       local baseName = termName(index)
-      if buf.name == baseName then
+      if buf.name == baseName and openBufs[buf.bufNr] ~= nil then
         local newName = "(" .. util.getTabName(buf.tabNum) .. ") " .. baseName
         api.nvim_buf_set_name(buf.bufNr, newName)
       end
@@ -332,10 +385,17 @@ end
 
 --- Refresh the terminal state
 function Terminals:refresh()
-  self:cleanup()
+  -- self:cleanup()
+  self:deleteMissing()
   self:setRecent()
   self:setFocus()
-  self:renameDefaults()
+  table.sort(self.bufs,
+    function(buf, otherBuf) 
+      return buf.index < otherBuf.index
+    end
+  )
+
+  -- self:renameDefaults()
 end
 
 
@@ -344,7 +404,8 @@ local M = {}
 
 --- Create a Terminals API for a tab
 function M.registerTab(tabNum)
-  -- util.debug('Registering tab ' .. tabNum)
+  local logger = Terminals.logger:withAttrs({logMethod="registerTab"})
+  logger:debug('Registering tab ' .. tabNum)
   local newTerminalsApi = Terminals:new(tabNum)
   tabMap[tabNum] = newTerminalsApi
   return newTerminalsApi
@@ -357,10 +418,11 @@ end
 
 --- Get (or create, if necessary) the Terminals API for the active tab
 local function getTerminalsApi()
+    local logger = Terminals.logger:withAttrs({logMethod="getTerminalsApi"})
     local tabNum = vim.api.nvim_get_current_tabpage()
     local terminals = tabMap[tabNum]
     if terminals == nil then
-      -- util.debug('Registering terminals API for tab ' .. tabNum)
+      logger:debug('Registering terminals API for tab ' .. tabNum)
       terminals = M.registerTab(tabNum)
     end
     return terminals
