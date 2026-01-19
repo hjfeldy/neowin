@@ -26,10 +26,10 @@ end
 ---@param loggerLabel string
 ---@param confKey string
 local function getConfig(loggerLabel, confKey)
-  -- local hasNeoconf, neoconf = pcall(require, 'neoconf')
+  local hasNeoconf, neoconf = pcall(require, 'neoconf')
   -- local hasNeoconf = true
   -- local neoconf = require('neoconf')
-  local confSection = require('neoconf').get(confKey) or {}
+  local confSection = (hasNeoconf and require('neoconf').get(confKey)) or {}
   return confSection[loggerLabel] or confSection['GLOBAL'] or {}
 end
 

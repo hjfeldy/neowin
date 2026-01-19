@@ -3,11 +3,11 @@ local util = require('util')
 local Logger = require('neoWin.logger')
 
 
---- @class StackNode 
---- @field val integer
---- @field prev StackNode
---- @field next StackNode
---- @field id integer
+---@class StackNode 
+---@field val integer
+---@field prev StackNode
+---@field next StackNode
+---@field id integer
 local StackNode = {}
 
 

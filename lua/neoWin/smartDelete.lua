@@ -238,6 +238,7 @@ function M.smartCloseWin(force)
     local whitelist = {
       ['qf'] = true,
       ['Terminal'] = true,
+      ['Outline'] = true,
       ['fugitive'] = true,
       ['help'] = true
     }

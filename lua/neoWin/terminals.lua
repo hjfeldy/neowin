@@ -7,11 +7,6 @@ local pathSep = package.config:sub(1,1)
 local isWindows = pathSep == '\\'
 local shell = isWindows and 'powershell' or os.getenv('SHELL')
 
---- Open a terminal buffer in the current window
-local function makeTerm()
-    return vim.cmd('e term://' .. shell)
-end
-
 
 local function termName(termIndex)
   -- local prefix = "(" .. util.getTabName() .. ")"
@@ -20,11 +15,13 @@ end
 
 --- Terminal Buffer Metadata
 ---@class TermBuffer
+---@field pid integer the process ID of the shell
 ---@field focused boolean When Terminals are toggled, is this terminal in view?
 ---@field name string Name of the buffer
 ---@field bufNr integer Buffer ID
 ---@field index integer Terminal Index (the i'th Terminal)
 ---@field tabNum integer Tab to which this terminal belongs
+local TermBuffer = {}
 
 --- Terminals API Class (tab-scoped)
 --- Create/delete terminals, 
@@ -40,6 +37,22 @@ local Terminals = {
   logger = Logger:new("Terminals")
 }
 
+
+--- Open a terminal buffer in the current window
+local function makeTerm()
+  -- local logger Logger:new('Terminals'):withAttrs({logMethod="makeTerm"})
+  vim.cmd('e term://' .. shell)
+  local name = vim.api.nvim_buf_get_name(0)
+  print('Default name: ' .. name)
+  -- term://~/.config/nvim//448610:/usr/bin/zsh
+  local innerSection = vim.split(name, ':')[2]
+  local dirPieces = vim.split(innerSection, '/')
+  local pid = dirPieces[#dirPieces]
+  return pid
+end
+
+
+---@return Terminals
 function Terminals:new(tabNum)
   local instance = {
     tabNum = tabNum,
@@ -81,12 +94,14 @@ function Terminals:createTerm()
   logger:debug('Creating terminal #' .. nextIndex)
   local name = 'Terminal ' .. nextIndex
   local fullName = "(" .. util.getTabName(self.tabNum) .. ") " .. name
-  api.nvim_buf_call(newBuf, makeTerm)
+  local pid = api.nvim_buf_call(newBuf, makeTerm)
+
   api.nvim_set_option_value('filetype', 'Terminal', {buf=newBuf})
   api.nvim_set_option_value('buflisted', false, {buf=newBuf})
   self.logger:debug('Setting terminal buffer ' .. newBuf .. ' name to ' .. name)
   api.nvim_buf_set_name(newBuf, fullName)
   local buf = {
+    pid = pid,
     focused = true,
     name = fullName,
     bufNr = newBuf,
@@ -97,6 +112,15 @@ function Terminals:createTerm()
   self.bufsById[buf.bufNr] = buf
   logger:debug('Created terminal ' .. self.numTerms .. ' for buffer ' .. buf.bufNr)
   self:refresh()
+  self:sendKeys(nextIndex, '. ./.env<CR>')
+end
+
+---@param termIndex integer
+---@param keys string
+function Terminals:sendKeys(termIndex, keys)
+  local buf = self.bufs[termIndex]
+  local chanId = vim.bo[buf.bufNr].channel
+  vim.api.nvim_chan_send(chanId, keys)
 end
 
 
@@ -331,16 +355,6 @@ function Terminals:setRecent()
 end
 
 
---- Refresher function to track the state of the terminals and perform periodic cleanup
--- function Terminals:cleanup()
---   local openBufs = util.openBufs()
---   for index, buf in pairs(self.bufs) do
---     if openBufs[buf.bufNr] == nil then
---       self:delete(index)
---     end
---   end
--- end
-
 
 --- Refresher function to track the focus of the terminals
 --- If any terminal is in view, mark it as focused
@@ -398,10 +412,13 @@ function Terminals:refresh()
 end
 
 
+---@type {[integer]: Terminals}
 local tabMap = {}
+
 local M = {}
 
 --- Create a Terminals API for a tab
+---@return Terminals
 function M.registerTab(tabNum)
   local logger = Terminals.logger:withAttrs({logMethod="registerTab"})
   logger:debug('Registering tab ' .. tabNum)
@@ -416,12 +433,14 @@ function M.deregisterTab(tabNum)
 end
 
 --- Get (or create, if necessary) the Terminals API for the active tab
-local function getTerminalsApi()
+---@return Terminals
+function M.getTerminalsApi()
     local logger = Terminals.logger:withAttrs({logMethod="getTerminalsApi"})
     local tabNum = vim.api.nvim_get_current_tabpage()
     local terminals = tabMap[tabNum]
     if terminals == nil then
       logger:debug('Registering terminals API for tab ' .. tabNum)
+      print('REGISTERING')
       terminals = M.registerTab(tabNum)
     end
     return terminals
@@ -431,7 +450,7 @@ end
 --- which automatically calls the relevant Terminals API instance for the active tab
 local function wrapForTab(func)
   local wrapped = function(...) 
-    local terminals = getTerminalsApi()
+    local terminals = M.getTerminalsApi()
     return func(terminals, ...)
   end
   return wrapped
@@ -443,22 +462,22 @@ M.renameTerm    =  wrapForTab(Terminals.renameTerm)
 M.show          =  wrapForTab(Terminals.show)
 M.attach        =  wrapForTab(Terminals.attach)
 M.toggle        =  wrapForTab(Terminals.toggle)
-M.delete        =  wrapForTab(Terminals.delete)
 M.cycleTerm     =  wrapForTab(Terminals.cycleTerm)
 M.nextTerm      =  wrapForTab(Terminals.nextTerm)
 M.prevTerm      =  wrapForTab(Terminals.prevTerm)
 M.getWindowId   =  wrapForTab(Terminals.getWindowId)
 M.firstWindowId =  wrapForTab(Terminals.firstWindowId)
 M.setRecent     =  wrapForTab(Terminals.setRecent)
-M.cleanup       =  wrapForTab(Terminals.cleanup)
 M.setFocus      =  wrapForTab(Terminals.setFocus)
 M.refresh       =  wrapForTab(Terminals.refresh)
+M.sendKeys      =  wrapForTab(Terminals.sendKeys)
+
 
 --- Get the current map of terminal buffers
 --- @param localTab boolean? Should the results be tab-local?
 function M.getTerminalBufs(localTab)
   if localTab then
-    local terminals = getTerminalsApi()
+    local terminals = M.getTerminalsApi()
     return terminals.bufs
   else
     local bufs = {}
@@ -475,7 +494,7 @@ end
 --- @param localTab boolean? Should the results be tab-local?
 function M.getTerminalBufsById(localTab)
   if localTab then
-    local terminals = getTerminalsApi()
+    local terminals = M.getTerminalsApi()
     return terminals.bufsById
   else
     local bufs = {}

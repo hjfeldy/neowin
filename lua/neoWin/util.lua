@@ -56,7 +56,8 @@ end
 --- @return string
 function M.getTabName(tabNum)
   if tabNum == nil then tabNum = 0 end
-  return api.nvim_tabpage_get_var(tabNum, 'name') or ("Tab " .. tabNum)
+  local ok, name = pcall(api.nvim_tabpage_get_var, tabNum, 'name')
+  return ok and name or ("Tab " .. tabNum)
 end
 
 --- Get a map of buffer names -> IDs
