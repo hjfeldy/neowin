@@ -1,5 +1,4 @@
 
-local util = require('util')
 local Logger = require('neoWin.logger')
 
 

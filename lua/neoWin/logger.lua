@@ -1,3 +1,6 @@
+local util = require('neoWin.util')
+local settings = require('neoWin.settings')
+
 local LOG_LEVELS = {
   INFO = vim.log.levels.INFO,
   DEBUG = vim.log.levels.DEBUG,
@@ -9,8 +12,6 @@ local LOG_LEVELS = {
 local LOG_LEVEL_STRINGS = {}
 for str, enumLvl in pairs(LOG_LEVELS) do LOG_LEVEL_STRINGS[enumLvl] = str end
 
-local DEFAULT_LEVEL = vim.log.levels.INFO
-local DEFAULT_FORMAT = "[{label}] {msg}"
 
 local function createFilterFunction(conditions)
   return function(logAttrs)
@@ -23,21 +24,19 @@ local function createFilterFunction(conditions)
 end
 
 
----@param loggerLabel string
----@param confKey string
-local function getConfig(loggerLabel, confKey)
-  local hasNeoconf, neoconf = pcall(require, 'neoconf')
-  -- local hasNeoconf = true
-  -- local neoconf = require('neoconf')
-  local confSection = (hasNeoconf and require('neoconf').get(confKey)) or {}
-  return confSection[loggerLabel] or confSection['GLOBAL'] or {}
+local function getLoggerConf(loggerLabel)
+  local loggingConf = util.getDynamicConf('logging')
+  local loggerConf = loggingConf[loggerLabel] or loggingConf['GLOBAL'] or {}
+  loggerConf = vim.tbl_deep_extend('force', settings.DEFAULT_LOG_OPTS, loggerConf)
+  return loggerConf
 end
 
 ---@param loggerLabel string
-function getLevel(loggerLabel) 
-  local loggingConf = getConfig(loggerLabel, 'logging')
-  local strLevel = loggingConf['level'] or ""
-  return LOG_LEVELS[strLevel] or DEFAULT_LEVEL
+local function getLevel(loggerLabel) 
+  local loggerConf = getLoggerConf(loggerLabel)
+  local strLevel = loggerConf['level'] or ""
+  return LOG_LEVELS[strLevel] or settings.DEFAULT_LEVEL
+
 end
 
 
@@ -56,14 +55,6 @@ end
 ---@field withinLevelFilters {[string]: string}[]? 
 
 
----@type LogOpts
-local DEFAULT_OPTS = {
-  level = nil,
-  attrs = {},
-  format=nil,
-  withinLevelFilters=nil,
-  levelOverrideFilters=nil
-}
 
 ---@class Logger
 ---@field level vim.log.levels
@@ -79,22 +70,18 @@ local Logger = {}
 ---@param label string
 ---@param opts LogOpts?
 function Logger:new(label, opts) 
-  opts = opts or DEFAULT_OPTS
-  local configuredLevel = getLevel(label)
-  local loggingConf = getConfig(label, 'logging') or {}
-  local level = opts.level or configuredLevel
-  if opts.level and configuredLevel ~= opts.level then
-    print('Overriding log-level for "' .. label .. '" logger (' .. opts.level .. ' over ' .. configuredLevel .. ')')
-  end
+  local level = getLevel(label)
+  local loggerConf = getLoggerConf(label) or {}
+  opts = opts or vim.tbl_deep_extend('force', settings.DEFAULT_LOG_OPTS, loggerConf)
 
-  local andFilterConditions = opts.withinLevelFilters or loggingConf['withinLevelFilters'] or {}
-  local orFilterConditions = opts.levelOverrideFilters or loggingConf['levelOverrideFilters'] or {}
+  local andFilterConditions = opts.withinLevelFilters or loggerConf['withinLevelFilters'] or {}
+  local orFilterConditions = opts.levelOverrideFilters or loggerConf['levelOverrideFilters'] or {}
 
   local inst = {
     label=label,
     level=level,
     attrs = opts.attrs or {},
-    format=opts.format or getConfig(label, "logging")['format'] or DEFAULT_FORMAT,
+    format=opts.format or loggerConf['format'] or settings.DEFAULT_FORMAT,
     withinLevelFilters = vim.tbl_map(createFilterFunction, andFilterConditions),
     levelOverrideFilters = vim.tbl_map(createFilterFunction, orFilterConditions),
     -- retain the opts so we can reconstruct loggers whenever neoconf is updated
@@ -123,11 +110,22 @@ function Logger:log(...)
   local args = { ... }
   local level = args[1]
 
+  local needsOrFilter = #self.levelOverrideFilters > 0
   local meetsOrFilter = false
   for _, filt in ipairs(self.levelOverrideFilters) do
     meetsOrFilter = meetsOrFilter or filt(self.attrs) 
   end
-  if not meetsOrFilter and level < self.level then return end
+
+  local insufficientLevel = level < self.level
+  if insufficientLevel then
+    if (not meetsOrFilter and needsOrFilter) then
+      return
+    -- if no levelOverrideFilters are specified,
+    -- there is no way for a message with an insufficient level to be logged
+    elseif not needsOrFilter then
+      return
+    end
+  end
 
   -- if no and filters, start with true and do nothing
   -- if any and filters exist, start with false and OR it
@@ -142,10 +140,18 @@ function Logger:log(...)
     msg = msg .. ' ' .. vim.inspect(args[i])
   end
 
-  local formatted = self.format:gsub('{msg}', msg):gsub('{label}', self.label)
+  local strLevel = LOG_LEVEL_STRINGS[level]
+  local formatted = self.format:gsub('{msg}', msg)
+                               :gsub('{label}', self.label)
+                               :gsub('{level}', strLevel)
+                               :gsub('{attrs}', vim.inspect(self.attrs))
   for find, repl in pairs(self.attrs) do
-    local findToken = '{' .. find .. '}'
-    formatted = formatted:gsub(findToken, repl)
+    if find == 'attrs' then
+      vim.notify('LOGGING ERROR - "attrs" is not a valid key name in the attrs table')
+    else
+      local findToken = '{' .. find .. '}'
+      formatted = formatted:gsub(findToken, repl)
+    end
   end
   vim.notify(formatted, level)
 end

@@ -107,18 +107,19 @@ end
 --- @param tabNr integer
 --- @param bufNr integer
 function M.updateLastBuf(tabNr, bufNr) 
+  local logger = LOGGER:withAttrs({logMethod="updateLastBuf"})
   if not vim.bo[bufNr].buflisted then
     return
   end
   if M.LAST_BUFS[tabNr] == nil then
-    util.debug('Setting up LAST_BUFS object for tabNr ' .. tabNr)
+    logger:debug('Setting up LAST_BUFS object for tabNr ' .. tabNr)
     M.LAST_BUFS[tabNr] = Stack:new(999)
   end
 
   local lastBuf
   lastBuf = M.LAST_BUFS[tabNr]
   if (lastBuf.head and lastBuf.head.val) == bufNr then
-    util.debug("Refusing to push buffer " .. bufNr .. " to stack - it is already at the front")
+    logger:debug("Refusing to push buffer " .. bufNr .. " to stack - it is already at the front")
     return
   end
   local bufName = vim.api.nvim_buf_get_name(bufNr)
@@ -126,9 +127,9 @@ function M.updateLastBuf(tabNr, bufNr)
     local origName = bufName
     bufName = bufName:match("([^\\/]+)$") 
     if bufName == nil or bufName == "" then bufName = origName end
-    util.debug('Pushing buf number ' .. bufNr .. ' (name=' .. (bufName or 'nil') .. ') to tab ' .. tabNr .. ' - current head value = ' .. (lastBuf.head and lastBuf.head.val or 'nil'))
+    logger:debug('Pushing buf number ' .. bufNr .. ' (name=' .. (bufName or 'nil') .. ') to tab ' .. tabNr .. ' - current head value = ' .. (lastBuf.head and lastBuf.head.val or 'nil'))
     lastBuf:add(bufNr)
-    util.debug('Current Items (after push): ' .. vim.inspect(lastBuf:toArray()) .. ' (count = ' .. lastBuf.count .. ')')
+    logger:debug('Current Items (after push): ' .. vim.inspect(lastBuf:toArray()) .. ' (count = ' .. lastBuf.count .. ')')
   end
 end
 
@@ -136,8 +137,9 @@ end
 --- Retrieve the most recently touched buffer for a given tab
 --- @param tabNr integer
 function M.getLastBuf(tabNr)
+  local logger = LOGGER:withAttrs({logMethod="getLastBuf"})
   local lastBuf = M.LAST_BUFS[tabNr]
-  util.debug('Last buf exists? ' .. (lastBuf == nil and 'no' or 'yes'))
+  logger:debug('Last buf exists? ' .. (lastBuf == nil and 'no' or 'yes'))
   return lastBuf and lastBuf.head and lastBuf.head.val
 end
 
@@ -192,7 +194,7 @@ function M.smartDeleteBuffer(force, bufnr, cycleWindowBuf, unlist)
   -- Find any windows which currently have the buffer-to-delete in focus
   -- Set the new buffer for each of those windows to be the next in the delete history  
   -- This way we never close the buffer of a window which is currently open, thereby closing the window itself
-  --
+
   local lastBuf = M.getLastBuf(tab)
   logger:debug('Last buf: ' .. (lastBuf or 'nil'))
 

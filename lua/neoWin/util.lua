@@ -1,32 +1,8 @@
 local api = vim.api
+local settings = require('neoWin.settings').CONF
 
 local M = {}
 
---- Emit a debug log (if debug logging for neowin is enabled)
---- @return nil
-function M.debug(...)
-  local msgs = { ... }
-  local s = ''
-  for _, msg in pairs(msgs) do
-    if type(msg) == 'table' then
-      s = s .. '\n' .. vim.inspect(msg) .. '\n'
-    else
-      s = s .. tostring(msg) .. ' '
-    end
-  end
-  if not vim.g.NEOWIN_DEBUG then
-    return
-  end
-  vim.notify(s, vim.log.levels.DEBUG)
-end
-
---- Toggle debug logging 
---- @return nil
-function M.toggleDebug() 
-  vim.g.NEOWIN_DEBUG = not vim.g.NEOWIN_DEBUG
-  local tf = vim.g.NEOWIN_DEBUG and 'true' or 'false'
-  vim.notify('Toggled neoWin debug logging to ' .. tf)
-end
 
 --- Generate a map of bufferId->windowId for all visible windows
 --- @reteurn { [integer]: integer }
@@ -43,9 +19,7 @@ end
 --- @return { [integer]: string }
 function M.openBufs() 
   local openBufs = {}
-  -- util.debug('FINDING BUFFERS')
   for _, bufNr in pairs(api.nvim_list_bufs()) do
-    -- util.debug('Found open buffer ' .. bufNr)
     openBufs[bufNr] = api.nvim_buf_get_name(bufNr)
   end
   return openBufs
@@ -79,12 +53,28 @@ end
 function M.dotEnv()
   local env = {}
   local dotEnvPath = vim.uv.cwd() .. '/.env'
+
+  local ok, lines = pcall(io.lines, dotEnvPath)
+  if not ok then return env end
+
   for ln in io.lines(dotEnvPath) do
     local split = vim.split(ln, '=')
     local key, val = split[1], split[2]
     env[key] = val
   end
   return env
+end
+
+---@param confKey string
+function M.getDynamicConf(confKey)
+  local hasNeoconf, neoconf = pcall(require, 'neoconf')
+  -- local hasNeoconf = true
+  -- local neoconf = require('neoconf')
+  local confSection = hasNeoconf and neoconf.get(confKey)
+  -- if no dynamic config available, fallback to settings 
+  confSection = confSection or settings[confKey] or {}
+  return confSection
+  -- return confSection[loggerLabel] or confSection['GLOBAL'] or {}
 end
 
 return M

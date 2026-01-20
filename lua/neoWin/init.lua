@@ -1,5 +1,6 @@
 return {
+  ---@param opts NeowinOpts?
   setup = function(opts) 
-    opts = opts or {}
+    require('neoWin.settings').setup(opts)
   end
 }
