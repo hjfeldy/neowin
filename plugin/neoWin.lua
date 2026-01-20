@@ -18,6 +18,17 @@ api.nvim_create_autocmd('TermClose', {
 })
 -- end
 
+api.nvim_create_autocmd('WinClosed', {
+  pattern = {'*'},
+  callback = function(ev)
+    local logger = LOGGER:withAttrs({logMethod="Buf/Win_ClosedCB"})
+    if vim.bo[ev.buf].filetype == 'Terminal' then
+      logger:debug('Closing terminal window')
+      vim.schedule(function() require('neoWin.terminals').refresh() end)
+    end
+  end
+})
+
 for _, eventName in pairs({'BufEnter', 'WinEnter'}) do
   api.nvim_create_autocmd(eventName,
     {

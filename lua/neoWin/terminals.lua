@@ -2,7 +2,6 @@ local util = require('neoWin.util')
 local settings = require('neoWin.settings').CONF
 local api = vim.api
 local Logger = require('neoWin.logger')
-local Job = require('plenary.job')
 
 local pathSep = package.config:sub(1,1)
 local isWindows = pathSep == '\\'
@@ -140,6 +139,7 @@ function Terminals:newTerm()
   local nextIndex = self:nextTermIndex()
   self:createTerm()
   self:attach(nextIndex)
+  self:refresh()
 end
 
 
@@ -236,8 +236,10 @@ function Terminals:toggle()
     return
   end
 
+  local visibleTermWin = self:lastWindowId()
+
   -- toggle on
-  if not self.toggled then
+  if visibleTermWin == nil then
     local found = false
     self.toggled = true
     for index, buf in pairs(self.bufs) do
@@ -257,7 +259,7 @@ function Terminals:toggle()
   else
     self.toggled = false
     local winBufs = util.windowBufs()
-    for bufId, winId in pairs(winBufs) do
+    for winId, bufId in pairs(winBufs) do
       if self.bufsById[bufId] ~= nil then
         api.nvim_win_close(winId, true)
       end
@@ -322,8 +324,12 @@ function Terminals:getWindowId(termIndex)
 
   logger:debug('Terminal Buf:', buf)
   local winBufs = util.windowBufs()
+  local bufWins = {}
+  for winId, bufId in pairs(winBufs) do 
+    bufWins[bufId] = winId
+  end
 
-  local winId = winBufs[buf.bufNr]
+  local winId = bufWins[buf.bufNr]
   logger:debug('Terminal #' .. termIndex .. ' Buffer=' .. buf.bufNr .. ', Window=' .. (winId or 'nil'))
   if winId == nil then
     logger:debug('No window for terminal ' .. termIndex .. ' (buffer ' .. buf.bufNr .. ')')
@@ -363,13 +369,11 @@ end
 
 
 --- Refresher function to track the focus of the terminals
---- If any terminal is in view, mark it as focused
+--- If any terminal is in view, mark it as focused and all other as non-focused
 --- (so that on the next toggle-on, a window is opened for this terminal)
+-- -@param excludeWindow integer? Optionally exclude 
 function Terminals:setFocus()
   local visibleTermWin = self:firstWindowId()
-  if not self.toggled then
-    return
-  end
   if visibleTermWin == nil then
     return
   end

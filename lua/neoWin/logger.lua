@@ -36,7 +36,6 @@ local function getLevel(loggerLabel)
   local loggerConf = getLoggerConf(loggerLabel)
   local strLevel = loggerConf['level'] or ""
   return LOG_LEVELS[strLevel] or settings.DEFAULT_LEVEL
-
 end
 
 

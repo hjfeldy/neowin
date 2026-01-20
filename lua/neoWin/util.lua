@@ -4,13 +4,13 @@ local settings = require('neoWin.settings').CONF
 local M = {}
 
 
---- Generate a map of bufferId->windowId for all visible windows
+--- Generate a map of windowId->bufferId for all visible windows
 --- @reteurn { [integer]: integer }
 function M.windowBufs()
   local out = {}
   for _, win in pairs(api.nvim_tabpage_list_wins(0)) do
     local buf = api.nvim_win_get_buf(win)
-    out[buf] = win
+    out[win] = buf
   end
   return out
 end
