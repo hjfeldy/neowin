@@ -1,5 +1,5 @@
 local util = require('neoWin.util')
-local settings = require('neoWin.settings').CONF
+local settings = require('neoWin.settings')
 local api = vim.api
 local Logger = require('neoWin.logger')
 
@@ -42,8 +42,8 @@ local Terminals = {
 local function makeTerm()
   local logger = Logger:new('Terminals'):withAttrs({logMethod="makeTerm"})
   -- vim.cmd('e term://' .. shell)
-  local env = settings.env or {}
-  if settings.useDotenv then
+  local env = settings.CONF.env or {}
+  if settings.CONF.useDotenv then
     env = vim.tbl_extend('force', env, util.dotEnv() or {}) 
   end
   local jobOpts = {term=true, pty=true}
