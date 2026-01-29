@@ -25,7 +25,8 @@ end
 
 
 local function getLoggerConf(loggerLabel)
-  local loggingConf = util.getDynamicConf('logging')
+  local loggingConf = settings.CONF.logging or {}
+  -- local loggingConf = util.getDynamicConf('logging')
   local loggerConf = loggingConf[loggerLabel] or loggingConf['GLOBAL'] or {}
   loggerConf = vim.tbl_deep_extend('force', settings.DEFAULT_LOG_OPTS, loggerConf)
   return loggerConf

@@ -33,6 +33,8 @@ local DEFAULT_OPTS = {
 
 ---@param opts NeowinOpts?
 M.setup = function(opts) 
+  local logger = require('neoWin.logger'):new("Settings")
+  logger:debug("Setting up neoWin with options: " .. vim.inspect(opts))
   opts = opts or {}
   opts = vim.tbl_deep_extend('force', DEFAULT_OPTS, opts)
   M.CONF = opts

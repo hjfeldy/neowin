@@ -2,6 +2,7 @@ local util = require('neoWin.util')
 local settings = require('neoWin.settings')
 local api = vim.api
 local Logger = require('neoWin.logger')
+local Stack = require('neoWin.stack')
 
 local pathSep = package.config:sub(1,1)
 local isWindows = pathSep == '\\'
@@ -33,6 +34,7 @@ local TermBuffer = {}
 ---@field bufsById table<integer, TermBuffer> Map of terminal buffers by their ID
 ---@field toggled boolean Is the terminal pane toggled?
 ---@field tabNum integer Tab to which this terminal API belongs
+---@field recent Stack most recently viewed buffers 
 local Terminals = {
   logger = Logger:new("Terminals")
 }
@@ -65,7 +67,7 @@ function Terminals:new(tabNum)
     numTerms = 0,
     bufs = {},
     bufsById = {},
-    recent=nil,
+    recent=Stack:new(999),
     toggled=false,
   }
   self.__index = self
@@ -154,7 +156,6 @@ function Terminals:renameTerm(termIndex)
     end
     termIndex = buf.index
   end
-  termIndex = termIndex or self.recent
   local newName = vim.fn.input('New name for ' .. self.bufs[termIndex].name .. ': ')
   local prefix = "(" .. util.getTabName(self.tabNum) .. ")"
   local fullName = prefix .. ' ' .. newName
@@ -175,8 +176,17 @@ function Terminals:attach(termIndex)
     local logger = self.logger:withAttrs({logMethod='attach'})
     logger:debug('Attaching terminal ' .. (vim.inspect(termIndex) or 'nil'))
     self.toggled = true
-    termIndex = termIndex or self.recent
+    termIndex = termIndex or self.recent.head.val
     local buf = self.bufs[termIndex]
+    while buf == nil and termIndex ~= nil and self.recent.count > 0 do
+      self.recent:removeInstancesOf(termIndex)
+      termIndex = self.recent.head.val
+      buf = self.bufs[termIndex]
+    end
+    if buf == nil and #self.bufs > 0 then
+      logger:debug("Recent buffer was deleted - falling back to most recently created buffer")
+      buf = self.bufs[#self.bufs]
+    end
 
     -- If the terminal is attached already, just focus it
     local winBuf = self:getWindowId(termIndex)
@@ -208,18 +218,20 @@ function Terminals:attach(termIndex)
       end)
     end
 
-    -- At this point you're residing in the window that should hold the new term
-    -- So we just assign the terminal buffer to window-0
-    buf.focused = true
-    logger:debug('Setting current-window buffer to ' .. buf.bufNr)
-    api.nvim_win_set_buf(0, buf.bufNr)
-    self.recent = termIndex
-    -- scroll to bottom of terminal 
-    vim.cmd('goto 99999999')
+    if buf ~= nil then 
+      -- At this point you're residing in the window that should hold the new term
+      -- So we just assign the terminal buffer to window-0
+      buf.focused = true
+      logger:debug('Setting current-window buffer to ' .. buf.bufNr)
+      api.nvim_win_set_buf(0, buf.bufNr)
+      self.recent:add(termIndex)
+      -- scroll to bottom of terminal 
+      vim.cmd('goto 99999999')
 
-    local termHL = vim.api.nvim_get_hl(0, {name='Terminal'})
-    if not vim.tbl_isempty(termHL) then
-      vim.wo[0].winhighlight = 'Normal:Terminal'
+      local termHL = vim.api.nvim_get_hl(0, {name='Terminal'})
+      if not vim.tbl_isempty(termHL) then
+        vim.wo[0].winhighlight = 'Normal:Terminal'
+      end
     end
 
 end
@@ -269,10 +281,14 @@ end
 
 
 function Terminals:deleteMissing()
+  local logger = self.logger:withAttrs({logMethod="deleteMissing"})
   local openBufs = util.openBufs()
   local offset = 0
-  for termIndex, buf in ipairs(self.bufs) do
+  for termIndex = 1,#self.bufs do
+  -- for termIndex, buf in ipairs(self.bufs) do
+    local buf = self.bufs[termIndex-offset]
     if openBufs[buf.bufNr] == nil then
+      logger:debug("Buffer " .. buf.bufNr .. " is not open - clearing record of it")
       table.remove(self.bufs, termIndex-offset)
       table.remove(self.bufsById, buf.bufNr)
       offset = offset+1
@@ -293,10 +309,25 @@ function Terminals:cycleTerm(plus)
 
   if self.numTerms == 0 then return end
   local thisBuf = api.nvim_get_current_buf()
-  local bufIndex = self.bufsById[thisBuf].index
+  -- local termBuf = self.bufsById[thisBuf]
+  -- the "index" field of the TermBuffer may not actually be the true array index 
+  -- (ie. if we have terminals 1,2,3 and then delete terminal 2,
+  -- then "terminal 3" is the *2nd* terminal)
+  local thisBufTermIndex = 0
+  for termIndex, buf in ipairs(self.bufs) do
+    if buf.bufNr == thisBuf then
+      thisBufTermIndex = termIndex
+    end
+  end
+  if thisBufTermIndex == 0 then
+    logger:error("Could not find this terminal's index!")
+    return
+  end
+
+  -- local bufIndex = self.bufsById[thisBuf].index
   local offset = plus and 1 or -1
   local wrapAround = plus and 1 or #self.bufs
-  local nextBuf = self.bufs[bufIndex+offset] or self.bufs[wrapAround]
+  local nextBuf = self.bufs[thisBufTermIndex+offset] or self.bufs[wrapAround]
   api.nvim_win_set_buf(0, nextBuf.bufNr)
   self:refresh()
 end
@@ -361,8 +392,8 @@ function Terminals:setRecent()
   local thisBuf = api.nvim_get_current_buf()
 
   if self.bufsById[thisBuf] ~= nil then
-    self.recent = self.bufsById[thisBuf].index
-    logger:debug('Set recent terminal-buffer index to ' .. self.recent)
+    self.recent:add(self.bufsById[thisBuf].index)
+    logger:debug('Set recent terminal-buffer index to ' .. self.recent.head.val)
   end
 end
 
