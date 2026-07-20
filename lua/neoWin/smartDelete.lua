@@ -31,7 +31,6 @@ function M.deserialize(bufsMap)
   for tabNr, lastBuf in pairs(M.LAST_BUFS) do
     logger:debug('DESERIALIZED SESSION (tab ' .. tabNr .. '): ' .. vim.inspect(lastBuf:toArray()) .. '')
   end
-  vim.fn.writefile({vim.inspect(M.LAST_BUFS)}, 'C:\\Users\\RC12664\\Repos\\neoWin\\deserialized')
 
   for _, tabNum in pairs(vim.api.nvim_list_tabpages()) do
     M.resetMissing(tabNum)
